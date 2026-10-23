@@ -12,29 +12,61 @@ test('renders the default diagram', async ({ page }) => {
 	await expect(page.locator('.badge')).toHaveText('flowchart');
 });
 
-test('zoom bar engages, survives edits, and leaves on error', async ({ page }) => {
-	const zoomBar = page.locator('.pele-zoom');
-	await expect(zoomBar).toBeVisible();
+test('zoom controls zoom the canvas and drag pans once zoomed', async ({ page }) => {
+	const viewBox = () => page.locator('.diagram svg').first().getAttribute('viewBox');
+	const initial = await viewBox();
+	expect(initial).toBeTruthy();
 
-	// Typing valid mermaid keeps zoom alive on the replaced svg.
+	// Toolbar zoom changes the viewBox; reset brings it back.
+	await page.locator('.zoom-tools button[title="Zoom in"]').click();
+	await page.locator('.zoom-tools button[title="Zoom in"]').click();
+	const zoomed = await viewBox();
+	expect(zoomed).not.toBe(initial);
+	await page.locator('.zoom-tools button[title*="Reset zoom"]').click();
+	expect(await viewBox()).toBe(initial);
+
+	// Pele pans by rewriting the viewBox on drag — but only once zoomed in.
+	const box = await page.locator('.diagram').boundingBox();
+	await page.locator('.diagram').dblclick({ position: { x: 200, y: 150 } });
+	const afterDblclick = await viewBox();
+	expect(afterDblclick).not.toBe(initial);
+
+	const cx = box!.x + box!.width / 2;
+	const cy = box!.y + box!.height / 2;
+	await page.mouse.move(cx, cy);
+	await page.mouse.down();
+	await page.mouse.move(cx + 80, cy + 60, { steps: 5 });
+	await page.mouse.up();
+	const afterDrag = await viewBox();
+	expect(afterDrag).not.toBe(afterDblclick);
+});
+
+test('history saves, restores and keeps a timeline', async ({ page }) => {
 	const editor = page.locator('.source-editor .cm-content');
 	await editor.click();
-	await page.keyboard.press('End');
-	await page.keyboard.type('\n  Z --> Y');
-	await expect(page.locator('.diagram text', { hasText: 'Y' }).first()).toBeVisible();
-	await expect(zoomBar).toBeVisible();
-
-	// An invalid diagram removes it (and the svg) until it renders again.
 	await editor.press('ControlOrMeta+a');
-	await editor.type('flowchart TD\n  A --> ]bogus');
-	await expect(page.locator('.error-banner')).toBeVisible();
-	await expect(zoomBar).toHaveCount(0);
+	await editor.type('pie title Z\n  "a" : 1');
+	await expect(page.locator('.badge')).toHaveText('pie');
 
-	// Recovering re-engages zoom.
+	// Bookmark it.
+	await page.getByRole('button', { name: 'History' }).click();
+	await page.getByRole('button', { name: 'Save version' }).click();
+
+	// The timeline already holds this session's snapshot.
+	await page.getByRole('tab', { name: /Timeline/ }).click();
+	await expect(page.locator('.panel li')).toHaveCount(1);
+
+	// Replace the diagram, then restore the bookmark. Clicking the editor
+	// closed the panel, so it is opened again.
+	await editor.click();
 	await editor.press('ControlOrMeta+a');
-	await editor.type('flowchart LR\n  A --> B');
-	await expect(page.locator('.diagram svg').first()).toBeVisible();
-	await expect(zoomBar).toBeVisible();
+	await editor.type('flowchart TD\n  Q --> R');
+	await expect(page.locator('.badge')).toHaveText('flowchart');
+	await page.getByRole('button', { name: 'History' }).click();
+	await page.getByRole('tab', { name: /Saved/ }).click();
+	await page.locator('.row-actions button[title="Restore this version"]').first().click();
+	await expect(page.locator('.source-editor .cm-content')).toContainText('pie title Z');
+	await expect(page.locator('.badge')).toHaveText('pie');
 });
 
 test('share link round-trips through the URL hash', async ({ page }) => {

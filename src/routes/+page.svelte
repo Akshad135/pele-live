@@ -1,7 +1,9 @@
 <script lang="ts">
 	import DiagramView from '$lib/components/DiagramView.svelte';
+	import HistoryPanel from '$lib/components/HistoryPanel.svelte';
 	import SourceEditor from '$lib/components/SourceEditor.svelte';
 	import { appState, loadedFromHash } from '$lib/state.svelte';
+	import { history as diagramHistory } from '$lib/history.svelte';
 	import { parseConfig, renderDiagram } from '$lib/render';
 	import { PeleError } from 'pele';
 	import { serializeState } from '$lib/serde';
@@ -97,11 +99,36 @@
 	}
 
 	let samplesOpen = $state(false);
+	let historyOpen = $state(false);
 	let editorTab = $state<'diagram' | 'config'>('diagram');
 	// The theme label is rendered after hydration: the prerendered page cannot
 	// know the saved choice, and a differing label would be a hydration mismatch.
 	let mounted = $state(false);
 	onMount(() => (mounted = true));
+
+	// Minute-by-minute timeline snapshots for the history panel.
+	onMount(() => diagramHistory.startAutoSave());
+
+	// Close the history panel on Escape or a click outside of it.
+	$effect(() => {
+		if (!historyOpen) return;
+		const close = (event: Event) => {
+			if (!(event.target instanceof Element)) return;
+			// The toggle is excluded: its click opens the panel, and this document
+			// listener is added during that same click's dispatch.
+			if (event.target.closest('.history-menu, .history-toggle')) return;
+			historyOpen = false;
+		};
+		const keyClose = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') historyOpen = false;
+		};
+		document.addEventListener('click', close);
+		document.addEventListener('keydown', keyClose);
+		return () => {
+			document.removeEventListener('click', close);
+			document.removeEventListener('keydown', keyClose);
+		};
+	});
 
 	// The error shown as an inline marker: only source errors map to editor lines.
 	const sourceError = $derived(
@@ -165,14 +192,27 @@
 				</div>
 			</details>
 			<button
+				class="action history-toggle"
+				class:active={historyOpen}
+				onclick={() => (historyOpen = !historyOpen)}
+				title="Saved versions and a timeline of your work"
+			>
+				History
+			</button>
+			<button
 				class="action"
 				onclick={() => themeState.cycle()}
 				title="Cycle theme (Auto → Light → Dark)"
 			>
 				{mounted ? themeState.label : ''}
 			</button>
-			<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
+		<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
+	</div>
+	{#if historyOpen}
+		<div class="history-menu">
+			<HistoryPanel />
 		</div>
+	{/if}
 	</header>
 
 	<main>
@@ -290,6 +330,23 @@
 
 	.action.primary:hover {
 		background: color-mix(in srgb, var(--accent) 88%, black);
+	}
+
+	.action.active {
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+
+	/* History dropdown, anchored to the header's right edge. */
+	.history-menu {
+		position: absolute;
+		top: calc(100% + 2px);
+		right: 12px;
+		z-index: 30;
+	}
+
+	header {
+		position: relative;
 	}
 
 	.menu {

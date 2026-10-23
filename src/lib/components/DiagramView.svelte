@@ -19,13 +19,22 @@
 	$effect(() => {
 		if (!stage) return;
 		// `always`: a playground diagram may fit its pane and still be worth zooming.
-		const instance = enableZoom(stage, { always: true, maxScale: 8 });
+		// `controls: false`: the toolbar below is ours, styled like the rest of the app.
+		const instance = enableZoom(stage, { always: true, maxScale: 8, controls: false });
 		zoom = instance;
 		return () => {
 			if (zoom === instance) zoom = undefined;
 			instance.destroy();
 		};
 	});
+
+	function zoomBy(factor: number) {
+		zoom?.zoomBy(factor);
+	}
+
+	function zoomReset() {
+		zoom?.reset();
+	}
 
 	// Pele's zoom does not watch the DOM: it needs refresh() to pick up the
 	// svg that {@html} replaces on every render.
@@ -108,6 +117,17 @@
 			{@html outcome.svg}
 		</div>
 		<span class="badge" title="Rendered diagram type">{outcome.diagramType}</span>
+		<div class="zoom-tools">
+			<button onclick={() => zoomBy(0.8)} title="Zoom out">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+			</button>
+			<button onclick={zoomReset} title="Reset zoom (drag the canvas to pan once zoomed)">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2-7.5L3 7" /></svg>
+			</button>
+			<button onclick={() => zoomBy(1.25)} title="Zoom in">
+				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+			</button>
+		</div>
 		<div class="toolbar">
 			<button onclick={copySvg}>{copied ? 'Copied' : 'Copy SVG'}</button>
 			<button onclick={downloadSvg}>SVG</button>
@@ -209,7 +229,23 @@
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
 	}
 
+	.zoom-tools {
+		position: absolute;
+		top: 14px;
+		right: 14px;
+		display: flex;
+		gap: 2px;
+		padding: 3px;
+		background: color-mix(in srgb, var(--surface) 72%, transparent);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
+	}
+
 	.toolbar button,
+	.zoom-tools button,
 	.side-tools button {
 		border: 0;
 		background: transparent;
@@ -224,6 +260,7 @@
 	}
 
 	.toolbar button:hover,
+	.zoom-tools button:hover,
 	.side-tools button:hover {
 		background: var(--accent-soft);
 		color: var(--accent);
@@ -264,17 +301,6 @@
 		border: 1px solid var(--error-border);
 		border-radius: 6px;
 		padding: 4px 10px;
-	}
-
-	/* Pele's zoom buttons: match the page instead of the diagram's variables. */
-	.diagram-frame :global(.pele-zoom) {
-		background: var(--surface) !important;
-		color: var(--fg) !important;
-		border-color: var(--border-strong) !important;
-	}
-
-	.diagram-frame :global(.pele-zoom button:hover:not(:disabled)) {
-		background: color-mix(in srgb, var(--accent) 12%, transparent);
 	}
 
 	.error-banner {
