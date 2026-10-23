@@ -1,9 +1,11 @@
 <script lang="ts">
 	import DiagramView from '$lib/components/DiagramView.svelte';
 	import SourceEditor from '$lib/components/SourceEditor.svelte';
-	import { appState } from '$lib/state.svelte';
+	import { appState, loadedFromHash } from '$lib/state.svelte';
 	import { parseConfig, renderDiagram } from '$lib/render';
 	import { PeleError } from 'pele';
+	import { deserializeState, serializeState } from '$lib/serde';
+	import { SAMPLES } from '$lib/samples';
 
 	// Split position as a fraction of the playground width, persisted.
 	const SPLIT_KEY = 'pele-live:split';
@@ -50,6 +52,60 @@
 			? { ok: false as const, error: new PeleError(`Invalid config JSON: ${parsedConfig.error}`) }
 			: renderDiagram(appState.code, parsedConfig.config)
 	);
+
+	// The hash was already applied during state initialization (no first-paint flicker);
+	// drop it from the address bar so a reload restores the saved session instead.
+	if (loadedFromHash) {
+		history.replaceState(null, '', window.location.pathname);
+	}
+
+	let copied = $state(false);
+	let copyTimer: ReturnType<typeof setTimeout> | undefined;
+
+	async function share() {
+		const url = `${window.location.origin}${window.location.pathname}#${serializeState({
+			code: appState.code,
+			config: appState.config
+		})}`;
+		try {
+			await navigator.clipboard.writeText(url);
+		} catch {
+			window.prompt('Copy this link:', url);
+			return;
+		}
+		copied = true;
+		clearTimeout(copyTimer);
+		copyTimer = setTimeout(() => (copied = false), 1600);
+	}
+
+	function openSample(name: string) {
+		const sample = SAMPLES.find((s) => s.name === name);
+		if (!sample) return;
+		appState.load({ code: sample.source, config: '{}' });
+		history.replaceState(null, '', window.location.pathname);
+		samplesOpen = false;
+	}
+
+	let samplesOpen = $state(false);
+
+	// Close the samples menu on Escape or a click outside of it.
+	$effect(() => {
+		if (!samplesOpen) return;
+		const close = (event: Event) => {
+			if (!(event.target instanceof Element) || !event.target.closest('.menu')) {
+				samplesOpen = false;
+			}
+		};
+		const keyClose = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') samplesOpen = false;
+		};
+		document.addEventListener('click', close);
+		document.addEventListener('keydown', keyClose);
+		return () => {
+			document.removeEventListener('click', close);
+			document.removeEventListener('keydown', keyClose);
+		};
+	});
 </script>
 
 <svelte:head>
@@ -63,6 +119,17 @@
 <header>
 	<a class="wordmark" href="/">pele<span>.live</span></a>
 	<span class="tagline">Mermaid playground · renders locally, nothing leaves your browser</span>
+	<div class="actions">
+		<details class="menu" bind:open={samplesOpen}>
+			<summary class="action">Samples</summary>
+			<div class="menu-list">
+				{#each SAMPLES as sample (sample.name)}
+					<button onclick={() => openSample(sample.name)}>{sample.name}</button>
+				{/each}
+			</div>
+		</details>
+		<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
+	</div>
 </header>
 
 <main>
@@ -91,6 +158,81 @@
 		padding: 10px 18px;
 		border-bottom: 1px solid var(--border);
 		background: var(--surface);
+	}
+
+	.actions {
+		margin-left: auto;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		align-self: center;
+	}
+
+	.action {
+		border: 1px solid var(--border-strong);
+		background: var(--surface);
+		color: var(--fg);
+		border-radius: var(--radius);
+		padding: 6px 14px;
+		font-size: 13px;
+		cursor: pointer;
+	}
+
+	.action:hover {
+		border-color: var(--accent);
+	}
+
+	.action.primary {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: var(--accent-fg);
+	}
+
+	.menu {
+		position: relative;
+	}
+
+	.menu summary {
+		list-style: none;
+		user-select: none;
+	}
+
+	.menu summary::-webkit-details-marker {
+		display: none;
+	}
+
+	.menu[open] summary {
+		border-color: var(--accent);
+	}
+
+	.menu-list {
+		position: absolute;
+		right: 0;
+		top: calc(100% + 6px);
+		z-index: 10;
+		min-width: 190px;
+		max-height: 70vh;
+		overflow: auto;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius);
+		box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+		padding: 4px;
+		display: grid;
+	}
+
+	.menu-list button {
+		text-align: left;
+		border: 0;
+		background: none;
+		padding: 7px 12px;
+		border-radius: 6px;
+		font-size: 13px;
+		cursor: pointer;
+	}
+
+	.menu-list button:hover {
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
 	}
 
 	.wordmark {

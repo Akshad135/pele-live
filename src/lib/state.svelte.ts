@@ -1,4 +1,5 @@
 import { DEFAULT_CODE, DEFAULT_CONFIG } from './defaults';
+import { deserializeState } from './serde';
 
 export interface AppState {
 	code: string;
@@ -7,9 +8,25 @@ export interface AppState {
 
 const STORAGE_KEY = 'pele-live:v1';
 
+/** True when the initial state came from a shared link in the URL hash. */
+export let loadedFromHash = false;
+
 function load(): AppState {
+	const defaults = { code: DEFAULT_CODE, config: DEFAULT_CONFIG };
 	if (typeof localStorage === 'undefined') {
-		return { code: DEFAULT_CODE, config: DEFAULT_CONFIG };
+		return defaults;
+	}
+	// A shared link in the URL wins over the saved session.
+	if (typeof location !== 'undefined' && location.hash.length > 1) {
+		try {
+			const shared = deserializeState(decodeURIComponent(location.hash.slice(1)));
+			if (shared) {
+				loadedFromHash = true;
+				return shared;
+			}
+		} catch {
+			// A malformed hash falls through to the saved session or defaults.
+		}
 	}
 	try {
 		const raw = localStorage.getItem(STORAGE_KEY);
