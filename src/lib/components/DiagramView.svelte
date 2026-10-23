@@ -150,10 +150,9 @@
 	.diagram-frame {
 		position: relative;
 		height: 100%;
-		overflow: auto;
+		overflow: hidden;
 		display: grid;
 		place-items: center;
-		padding: 28px;
 		background: var(--surface);
 	}
 
@@ -164,8 +163,16 @@
 		background-position: -1px -1px;
 	}
 
+	/* The zoom stage: pele zooms within this element, so it fills the pane —
+	   at rest the drawing is centered; zoomed, it uses the whole canvas. */
 	.diagram {
-		max-width: 100%;
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		display: grid;
+		place-items: center;
+		padding: 28px;
 		line-height: 0;
 	}
 

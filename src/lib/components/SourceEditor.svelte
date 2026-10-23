@@ -3,7 +3,7 @@
 	import { EditorState, type Extension } from '@codemirror/state';
 	import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
 	import { untrack } from 'svelte';
-	import { mermaidLanguage } from '$lib/mermaidLanguage';
+	import { mermaidWithTheme } from '$lib/mermaidLanguage';
 	import { errorRange, type SourceError } from '$lib/diagnostics';
 
 	interface Props {
@@ -29,7 +29,7 @@
 				doc: initialDoc,
 				extensions: [
 					basicSetup,
-					mermaidLanguage,
+					mermaidWithTheme,
 					EditorView.lineWrapping,
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged) oninput(editor.state.doc.toString());
@@ -100,27 +100,6 @@
 
 	.source-editor :global(.cm-selectionBackground) {
 		background: color-mix(in srgb, var(--accent) 18%, transparent) !important;
-	}
-
-	.source-editor :global(.cm-keyword) {
-		color: var(--syntax-keyword);
-	}
-
-	.source-editor :global(.cm-string) {
-		color: var(--syntax-string);
-	}
-
-	.source-editor :global(.cm-comment) {
-		color: var(--syntax-comment);
-		font-style: italic;
-	}
-
-	.source-editor :global(.cm-meta) {
-		color: var(--syntax-meta);
-	}
-
-	.source-editor :global(.cm-operator) {
-		color: var(--syntax-operator);
 	}
 
 	.source-editor :global(.cm-lintRange-error) {

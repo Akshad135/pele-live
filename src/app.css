@@ -12,11 +12,11 @@
 	--error-fg: #b91c1c;
 	--error-border: #fecaca;
 	--grid-dot: #dcdce0;
-	--syntax-keyword: #7c3aed;
-	--syntax-string: #15803d;
-	--syntax-comment: #9ca3af;
-	--syntax-meta: #2563eb;
-	--syntax-operator: #c2410c;
+	--syntax-keyword: #1d4ed8;
+	--syntax-string: #047857;
+	--syntax-comment: #a1a1aa;
+	--syntax-meta: #7c3aed;
+	--syntax-operator: #64748b;
 
 	/* Diagram tokens (pele). Neutral white, no cream. */
 	--pele-bg: #ffffff;
@@ -56,11 +56,11 @@
 	--error-fg: #f87171;
 	--error-border: #572424;
 	--grid-dot: #262626;
-	--syntax-keyword: #c4b5fd;
-	--syntax-string: #86efac;
-	--syntax-comment: #6b6b6b;
-	--syntax-meta: #5b9bf8;
-	--syntax-operator: #fdba74;
+	--syntax-keyword: #93c5fd;
+	--syntax-string: #6ee7b7;
+	--syntax-comment: #6b7280;
+	--syntax-meta: #c4b5fd;
+	--syntax-operator: #94a3b8;
 
 	/* Diagram tokens (pele). Matte black. */
 	--pele-bg: #161616;
@@ -98,11 +98,11 @@
 		--error-fg: #f87171;
 		--error-border: #572424;
 		--grid-dot: #262626;
-		--syntax-keyword: #c4b5fd;
-		--syntax-string: #86efac;
-		--syntax-comment: #6b6b6b;
-		--syntax-meta: #5b9bf8;
-		--syntax-operator: #fdba74;
+		--syntax-keyword: #93c5fd;
+		--syntax-string: #6ee7b7;
+		--syntax-comment: #6b7280;
+		--syntax-meta: #c4b5fd;
+		--syntax-operator: #94a3b8;
 
 		--pele-bg: #161616;
 		--pele-fg: #e7e7e7;

@@ -1,4 +1,5 @@
-import { StreamLanguage } from '@codemirror/language';
+import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { tags as t } from '@lezer/highlight';
 
 // Diagram-type headers and the structural keywords each grammar shares.
 const DIAGRAM_TYPES =
@@ -36,6 +37,15 @@ function token(stream: import('@codemirror/language').StringStream): string | nu
 	return null;
 }
 
+/** Token names mapped explicitly so the highlight style below always applies. */
+export const mermaidHighlight = HighlightStyle.define([
+	{ tag: t.keyword, color: 'var(--syntax-keyword)' },
+	{ tag: t.string, color: 'var(--syntax-string)' },
+	{ tag: t.comment, color: 'var(--syntax-comment)', fontStyle: 'italic' },
+	{ tag: t.meta, color: 'var(--syntax-meta)' },
+	{ tag: t.operator, color: 'var(--syntax-operator)' }
+]);
+
 /** A lightweight Mermaid grammar: comments, diagram keywords, strings, edge operators. */
 export const mermaidLanguage = StreamLanguage.define<null>({
 	name: 'mermaid',
@@ -43,5 +53,15 @@ export const mermaidLanguage = StreamLanguage.define<null>({
 	token(stream, _state) {
 		return token(stream);
 	},
-	languageData: { commentTokens: { line: '%%' } }
+	languageData: { commentTokens: { line: '%%' } },
+	tokenTable: {
+		keyword: t.keyword,
+		string: t.string,
+		comment: t.comment,
+		meta: t.meta,
+		operator: t.operator
+	}
 });
+
+/** The grammar and its theme, bound to the page's --syntax-* variables. */
+export const mermaidWithTheme = [mermaidLanguage, syntaxHighlighting(mermaidHighlight)];
