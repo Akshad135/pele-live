@@ -10,6 +10,11 @@
 	--error-bg: #fdf0ef;
 	--error-fg: #a83a32;
 	--error-border: #efc9c5;
+	--syntax-keyword: #814ba8;
+	--syntax-string: #2f7d4f;
+	--syntax-comment: #98958e;
+	--syntax-meta: #205ea6;
+	--syntax-operator: #b05818;
 
 	--pele-bg: transparent;
 	--pele-fg: var(--fg);
@@ -36,7 +41,51 @@
 		--error-bg: #33201e;
 		--error-fg: #e8a49e;
 		--error-border: #5c3630;
+		--syntax-keyword: #b692e0;
+		--syntax-string: #85c99a;
+		--syntax-comment: #78756e;
+		--syntax-meta: #7aa5dc;
+		--syntax-operator: #d99a62;
 	}
+}
+
+/* Explicit theme choice wins over the system preference. */
+:root[data-theme='light'] {
+	--bg: #fbfaf8;
+	--surface: #ffffff;
+	--fg: #1c1b1a;
+	--muted: #6f6d68;
+	--border: #e3e1dc;
+	--border-strong: #cfccc6;
+	--accent: #205ea6;
+	--accent-fg: #ffffff;
+	--error-bg: #fdf0ef;
+	--error-fg: #a83a32;
+	--error-border: #efc9c5;
+	--syntax-keyword: #814ba8;
+	--syntax-string: #2f7d4f;
+	--syntax-comment: #98958e;
+	--syntax-meta: #205ea6;
+	--syntax-operator: #b05818;
+}
+
+:root[data-theme='dark'] {
+	--bg: #1a1917;
+	--surface: #222019;
+	--fg: #e8e6e1;
+	--muted: #9b9891;
+	--border: #363430;
+	--border-strong: #4a473f;
+	--accent: #7aa5dc;
+	--accent-fg: #14181f;
+	--error-bg: #33201e;
+	--error-fg: #e8a49e;
+	--error-border: #5c3630;
+	--syntax-keyword: #b692e0;
+	--syntax-string: #85c99a;
+	--syntax-comment: #78756e;
+	--syntax-meta: #7aa5dc;
+	--syntax-operator: #d99a62;
 }
 
 * {

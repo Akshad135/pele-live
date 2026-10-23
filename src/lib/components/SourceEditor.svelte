@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { basicSetup, EditorView } from 'codemirror';
 	import { EditorState, type Extension } from '@codemirror/state';
+	import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
+	import { untrack } from 'svelte';
 	import { mermaidLanguage } from '$lib/mermaidLanguage';
+	import { errorRange, type SourceError } from '$lib/diagnostics';
 
 	interface Props {
 		value: string;
 		oninput: (code: string) => void;
 		extensions?: Extension[];
+		/** Current render error, shown as a squiggle on the offending line. */
+		error?: SourceError | null;
 	}
 
-	import { untrack } from 'svelte';
-
-	let { value, oninput, extensions = [] }: Props = $props();
+	let { value, oninput, extensions = [], error = null }: Props = $props();
 
 	let container = $state<HTMLDivElement | undefined>();
 	let view: EditorView | undefined;
@@ -30,6 +33,13 @@
 					EditorView.lineWrapping,
 					EditorView.updateListener.of((update) => {
 						if (update.docChanged) oninput(editor.state.doc.toString());
+					}),
+					lintGutter(),
+					linter((current) => {
+						if (!error) return [];
+						const { from, to } = errorRange(current.state.doc, error);
+						const diagnostic: Diagnostic = { from, to, severity: 'error', message: error.message };
+						return [diagnostic];
 					}),
 					...extensions
 				]
@@ -78,5 +88,44 @@
 	.source-editor :global(.cm-activeLineGutter) {
 		background: transparent;
 		color: var(--fg);
+	}
+
+	.source-editor :global(.cm-content) {
+		caret-color: var(--fg);
+	}
+
+	.source-editor :global(.cm-cursor) {
+		border-left-color: var(--fg);
+	}
+
+	.source-editor :global(.cm-selectionBackground) {
+		background: color-mix(in srgb, var(--accent) 18%, transparent) !important;
+	}
+
+	.source-editor :global(.cm-keyword) {
+		color: var(--syntax-keyword);
+	}
+
+	.source-editor :global(.cm-string) {
+		color: var(--syntax-string);
+	}
+
+	.source-editor :global(.cm-comment) {
+		color: var(--syntax-comment);
+		font-style: italic;
+	}
+
+	.source-editor :global(.cm-meta) {
+		color: var(--syntax-meta);
+	}
+
+	.source-editor :global(.cm-operator) {
+		color: var(--syntax-operator);
+	}
+
+	.source-editor :global(.cm-lintRange-error) {
+		background-image: none;
+		text-decoration: underline wavy var(--error-fg);
+		text-underline-offset: 3px;
 	}
 </style>

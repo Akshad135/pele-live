@@ -4,8 +4,10 @@
 	import { appState, loadedFromHash } from '$lib/state.svelte';
 	import { parseConfig, renderDiagram } from '$lib/render';
 	import { PeleError } from 'pele';
-	import { deserializeState, serializeState } from '$lib/serde';
+	import { serializeState } from '$lib/serde';
 	import { SAMPLES } from '$lib/samples';
+	import { onMount } from 'svelte';
+	import { themeState } from '$lib/theme.svelte';
 
 	// Split position as a fraction of the playground width, persisted.
 	const SPLIT_KEY = 'pele-live:split';
@@ -87,6 +89,18 @@
 	}
 
 	let samplesOpen = $state(false);
+	let editorTab = $state<'diagram' | 'config'>('diagram');
+	// The theme label is rendered after hydration: the prerendered page cannot
+	// know the saved choice, and a differing label would be a hydration mismatch.
+	let mounted = $state(false);
+	onMount(() => (mounted = true));
+
+	// The error shown as an inline marker: only source errors map to editor lines.
+	const sourceError = $derived(
+		outcome.ok || parsedConfig.error
+			? null
+			: { line: outcome.error.line, column: outcome.error.column, message: outcome.error.message }
+	);
 
 	// Close the samples menu on Escape or a click outside of it.
 	$effect(() => {
@@ -128,6 +142,13 @@
 				{/each}
 			</div>
 		</details>
+		<button
+			class="action"
+			onclick={() => themeState.cycle()}
+			title="Cycle theme (Auto → Light → Dark)"
+		>
+			{mounted ? themeState.label : ''}
+		</button>
 		<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
 	</div>
 </header>
@@ -135,7 +156,43 @@
 <main>
 	<div class="panes" bind:this={panes} style={`grid-template-columns: ${split}fr 6px 1fr`}>
 		<section class="pane" aria-label="Mermaid source">
-			<SourceEditor value={appState.code} oninput={(code) => (appState.code = code)} />
+			<div class="editor-tabs">
+				<button
+					aria-pressed={editorTab === 'diagram'}
+					class:active={editorTab === 'diagram'}
+					onclick={() => (editorTab = 'diagram')}
+				>
+					Diagram
+				</button>
+				<button
+					aria-pressed={editorTab === 'config'}
+					class:active={editorTab === 'config'}
+					onclick={() => (editorTab = 'config')}
+				>
+					Config
+				</button>
+			</div>
+			{#if editorTab === 'diagram'}
+				<div class="editor-body">
+					<SourceEditor value={appState.code} oninput={(code) => (appState.code = code)} error={sourceError} />
+				</div>
+			{:else}
+				<div class="editor-body config-body">
+					<textarea
+						class="config-editor"
+						spellcheck="false"
+						aria-label="Mermaid config JSON"
+						bind:value={appState.config}
+					></textarea>
+					{#if parsedConfig.error}
+						<p class="config-error" role="alert">Config JSON: {parsedConfig.error}</p>
+					{:else}
+						<p class="config-hint">
+							Pele reads the config keys it supports (passed to the renderer); the rest are ignored.
+						</p>
+					{/if}
+				</div>
+			{/if}
 		</section>
 		<div
 			class="divider"
@@ -268,6 +325,78 @@
 		min-height: 0;
 		overflow: hidden;
 		background: var(--surface);
+		display: flex;
+		flex-direction: column;
+	}
+
+	.editor-tabs {
+		display: flex;
+		gap: 2px;
+		padding: 6px 8px;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.editor-tabs button {
+		border: 1px solid transparent;
+		background: none;
+		border-radius: 6px;
+		padding: 4px 12px;
+		font-size: 12.5px;
+		color: var(--muted);
+		cursor: pointer;
+	}
+
+	.editor-tabs button:hover {
+		color: var(--fg);
+	}
+
+	.editor-tabs button.active {
+		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		color: var(--accent);
+		border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+	}
+
+	.editor-body {
+		flex: 1;
+		min-height: 0;
+	}
+
+	.config-body {
+		display: flex;
+		flex-direction: column;
+		padding: 10px 12px;
+		gap: 8px;
+	}
+
+	.config-editor {
+		flex: 1;
+		min-height: 0;
+		resize: none;
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+		background: var(--bg);
+		color: var(--fg);
+		font-family: var(--mono);
+		font-size: 13px;
+		line-height: 1.5;
+		padding: 10px 12px;
+	}
+
+	.config-editor:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+
+	.config-error {
+		margin: 0;
+		font-size: 12.5px;
+		color: var(--error-fg);
+	}
+
+	.config-hint {
+		margin: 0;
+		font-size: 12.5px;
+		color: var(--muted);
 	}
 
 	.divider {
