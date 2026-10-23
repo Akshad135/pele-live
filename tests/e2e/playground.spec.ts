@@ -65,3 +65,25 @@ test('export produces an SVG download with resolved theme', async ({ page, conte
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toBe('diagram.svg');
 });
+
+test('popout opens the diagram in its own tab with an editor way back', async ({ page }) => {
+	await page.waitForTimeout(400); // hydration, so the popout carries current state
+	const popupPromise = page.context().waitForEvent('page');
+	await page.locator('.side-tools button[title*="own tab"]').click();
+	const popup = await popupPromise;
+	await expect(popup.locator('.diagram svg').first()).toBeVisible();
+	await expect(popup.locator('.badge')).toHaveText('flowchart');
+	await expect(popup.getByRole('link', { name: 'Open in editor' })).toBeVisible();
+
+	// The way back loads the same diagram in the editor.
+	await popup.getByRole('link', { name: 'Open in editor' }).click();
+	await expect(popup.locator('.diagram svg').first()).toBeVisible();
+	await expect(popup.locator('.badge')).toHaveText('flowchart');
+});
+
+test('fullscreen button requests fullscreen on the preview', async ({ page }) => {
+	await page.locator('.side-tools button[title="Fullscreen"]').click();
+	await page.waitForFunction(() => document.fullscreenElement !== null);
+	await page.locator('.side-tools button[title="Fullscreen"]').click();
+	await page.waitForFunction(() => document.fullscreenElement === null);
+});

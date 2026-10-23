@@ -80,6 +80,14 @@
 		copyTimer = setTimeout(() => (copied = false), 1600);
 	}
 
+	function popout() {
+		const url = `${window.location.origin}/view#${serializeState({
+			code: appState.code,
+			config: appState.config
+		})}`;
+		window.open(url, '_blank', 'noopener');
+	}
+
 	function openSample(name: string) {
 		const sample = SAMPLES.find((s) => s.name === name);
 		if (!sample) return;
@@ -130,31 +138,45 @@
 	/>
 </svelte:head>
 
-<header>
-	<a class="wordmark" href="/">pele<span>.live</span></a>
-	<span class="tagline">Mermaid playground · renders locally, nothing leaves your browser</span>
-	<div class="actions">
-		<details class="menu" bind:open={samplesOpen}>
-			<summary class="action">Samples</summary>
-			<div class="menu-list">
-				{#each SAMPLES as sample (sample.name)}
-					<button onclick={() => openSample(sample.name)}>{sample.name}</button>
-				{/each}
-			</div>
-		</details>
-		<button
-			class="action"
-			onclick={() => themeState.cycle()}
-			title="Cycle theme (Auto → Light → Dark)"
-		>
-			{mounted ? themeState.label : ''}
-		</button>
-		<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
-	</div>
-</header>
+<div class="shell">
+	<header>
+		<a class="wordmark" href="/">
+			<svg class="mark" width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
+				<rect width="32" height="32" rx="7" fill="var(--fg)" />
+				<path
+					d="M8 11h7a4 4 0 0 1 4 4v1M8 21h7a4 4 0 0 0 4-4v-1"
+					fill="none"
+					stroke="var(--surface)"
+					stroke-width="2.5"
+					stroke-linecap="round"
+				/>
+				<circle cx="22.5" cy="16" r="2.5" fill="var(--accent)" />
+			</svg>
+			pele<span>.live</span>
+		</a>
+		<span class="tagline">renders locally, nothing leaves your browser</span>
+		<div class="actions">
+			<details class="menu" bind:open={samplesOpen}>
+				<summary class="action">Samples</summary>
+				<div class="menu-list">
+					{#each SAMPLES as sample (sample.name)}
+						<button onclick={() => openSample(sample.name)}>{sample.name}</button>
+					{/each}
+				</div>
+			</details>
+			<button
+				class="action"
+				onclick={() => themeState.cycle()}
+				title="Cycle theme (Auto → Light → Dark)"
+			>
+				{mounted ? themeState.label : ''}
+			</button>
+			<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
+		</div>
+	</header>
 
-<main>
-	<div class="panes" bind:this={panes} style={`grid-template-columns: ${split}fr 6px 1fr`}>
+	<main>
+		<div class="panes" bind:this={panes} style={`grid-template-columns: ${split}fr 6px 1fr`}>
 		<section class="pane" aria-label="Mermaid source">
 			<div class="editor-tabs">
 				<button
@@ -202,10 +224,11 @@
 			onpointerdown={startDrag}
 		></div>
 		<section class="pane" aria-label="Diagram preview">
-			<DiagramView {outcome} />
+			<DiagramView {outcome} onpopout={popout} />
 		</section>
 	</div>
 </main>
+</div>
 
 <style>
 	header {
@@ -338,21 +361,26 @@
 	}
 
 	.editor-tabs {
-		display: flex;
+		display: inline-flex;
 		gap: 2px;
-		padding: 8px 10px 0;
+		padding: 3px;
+		margin: 8px 10px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 9px;
+		align-self: flex-start;
 	}
 
 	.editor-tabs button {
-		border: 1px solid transparent;
-		border-bottom: 0;
-		background: none;
-		border-radius: 8px 8px 0 0;
-		padding: 6px 14px;
+		border: 0;
+		background: transparent;
+		border-radius: 7px;
+		padding: 4px 14px;
 		font-size: 12.5px;
 		font-weight: 500;
 		color: var(--muted);
 		cursor: pointer;
+		transition: color 100ms;
 	}
 
 	.editor-tabs button:hover {
@@ -360,8 +388,9 @@
 	}
 
 	.editor-tabs button.active {
-		background: var(--accent-soft);
-		color: var(--accent);
+		background: var(--surface);
+		color: var(--fg);
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
 	}
 
 	.editor-body {

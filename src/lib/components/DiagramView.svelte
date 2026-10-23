@@ -5,9 +5,11 @@
 
 	interface Props {
 		outcome: RenderOutcome;
+		/** Opens the current diagram in its own tab. Button hidden when absent. */
+		onpopout?: () => void;
 	}
 
-	let { outcome }: Props = $props();
+	let { outcome, onpopout }: Props = $props();
 
 	let frame = $state<HTMLDivElement | undefined>();
 	// The element whose first element child is the svg — what enableZoom needs.
@@ -50,6 +52,18 @@
 			localStorage.setItem(GRID_KEY, grid ? 'on' : 'off');
 		} catch {
 			// The toggle still works this session if saving fails.
+		}
+	}
+
+	async function fullscreen() {
+		try {
+			if (document.fullscreenElement) {
+				await document.exitFullscreen();
+			} else {
+				await frame?.requestFullscreen();
+			}
+		} catch {
+			// Fullscreen can be refused (permissions policy, iframe); the button just does nothing.
 		}
 	}
 
@@ -99,6 +113,25 @@
 			<button onclick={downloadSvg}>SVG</button>
 			<button onclick={downloadPng}>PNG</button>
 		</div>
+		<div class="side-tools">
+			{#if onpopout}
+				<button onclick={onpopout} title="Open the diagram in its own tab">
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+					</svg>
+				</button>
+			{/if}
+			<button onclick={fullscreen} title="Fullscreen">
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+				</svg>
+			</button>
+			<button onclick={toggleGrid} title={grid ? 'Hide grid' : 'Show grid'} aria-pressed={grid}>
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+					<path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+				</svg>
+			</button>
+		</div>
 		{#if exportError}
 			<p class="export-error" role="alert">{exportError}</p>
 		{/if}
@@ -111,16 +144,6 @@
 			<pre>{outcome.error.message}</pre>
 		</div>
 	{/if}
-	<button
-		class="grid-toggle"
-		onclick={toggleGrid}
-		title={grid ? 'Hide grid' : 'Show grid'}
-		aria-pressed={grid}
-	>
-		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
-			<path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-		</svg>
-	</button>
 </div>
 
 <style>
@@ -153,9 +176,10 @@
 
 	.badge {
 		position: absolute;
-		top: 12px;
-		right: 12px;
+		top: 14px;
+		left: 14px;
 		font-size: 11.5px;
+		font-weight: 500;
 		color: var(--muted);
 		background: var(--surface);
 		border: 1px solid var(--border);
@@ -165,25 +189,61 @@
 
 	.toolbar {
 		position: absolute;
-		bottom: 12px;
-		left: 12px;
+		bottom: 14px;
+		left: 14px;
 		display: flex;
-		gap: 4px;
+		gap: 2px;
+		padding: 3px;
+		background: color-mix(in srgb, var(--surface) 72%, transparent);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
 	}
 
-	.toolbar button {
-		border: 1px solid var(--border);
-		background: var(--surface);
+	.toolbar button,
+	.side-tools button {
+		border: 0;
+		background: transparent;
 		color: var(--fg);
-		border-radius: 6px;
+		border-radius: 7px;
 		padding: 4px 10px;
 		font-size: 12px;
+		font-weight: 500;
 		cursor: pointer;
+		display: grid;
+		place-items: center;
 	}
 
-	.toolbar button:hover {
-		border-color: var(--accent);
+	.toolbar button:hover,
+	.side-tools button:hover {
+		background: var(--accent-soft);
 		color: var(--accent);
+	}
+
+	.side-tools button[aria-pressed='true'] {
+		color: var(--accent);
+		background: var(--accent-soft);
+	}
+
+	.side-tools {
+		position: absolute;
+		bottom: 14px;
+		right: 14px;
+		display: flex;
+		gap: 2px;
+		padding: 3px;
+		background: color-mix(in srgb, var(--surface) 72%, transparent);
+		backdrop-filter: blur(10px);
+		-webkit-backdrop-filter: blur(10px);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
+	}
+
+	.diagram-frame:fullscreen {
+		border-radius: 0;
 	}
 
 	.export-error {
@@ -197,32 +257,6 @@
 		border: 1px solid var(--error-border);
 		border-radius: 6px;
 		padding: 4px 10px;
-	}
-
-	.grid-toggle {
-		position: absolute;
-		bottom: 12px;
-		right: 12px;
-		display: grid;
-		place-items: center;
-		width: 30px;
-		height: 30px;
-		border: 1px solid var(--border);
-		border-radius: 7px;
-		background: var(--surface);
-		color: var(--muted);
-		cursor: pointer;
-	}
-
-	.grid-toggle:hover {
-		color: var(--accent);
-		border-color: var(--accent);
-	}
-
-	.grid-toggle[aria-pressed='true'] {
-		color: var(--accent);
-		background: var(--accent-soft);
-		border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 	}
 
 	/* Pele's zoom buttons: match the page instead of the diagram's variables. */
