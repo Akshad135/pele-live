@@ -38,6 +38,21 @@
 
 	$effect(() => () => clearTimeout(copyTimer));
 
+	// Grid toggle, persisted like the original editor's.
+	const GRID_KEY = 'pele-live:grid';
+	let grid = $state(
+		typeof localStorage === 'undefined' || localStorage.getItem(GRID_KEY) !== 'off'
+	);
+
+	function toggleGrid() {
+		grid = !grid;
+		try {
+			localStorage.setItem(GRID_KEY, grid ? 'on' : 'off');
+		} catch {
+			// The toggle still works this session if saving fails.
+		}
+	}
+
 	async function copySvg() {
 		if (!outcome.ok || !frame) return;
 		const source = frame.querySelector('svg');
@@ -72,7 +87,7 @@
 	}
 </script>
 
-<div class="diagram-frame" class:has-error={!outcome.ok} bind:this={frame}>
+<div class="diagram-frame" class:has-error={!outcome.ok} class:grid={grid && outcome.ok} bind:this={frame}>
 	{#if outcome.ok}
 		<div class="diagram" bind:this={stage}>
 			<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
@@ -96,6 +111,16 @@
 			<pre>{outcome.error.message}</pre>
 		</div>
 	{/if}
+	<button
+		class="grid-toggle"
+		onclick={toggleGrid}
+		title={grid ? 'Hide grid' : 'Show grid'}
+		aria-pressed={grid}
+	>
+		<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
+			<path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+		</svg>
+	</button>
 </div>
 
 <style>
@@ -105,14 +130,20 @@
 		overflow: auto;
 		display: grid;
 		place-items: center;
-		padding: 24px;
-		background:
-			radial-gradient(color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px) 0 0 /
-				22px 22px;
+		padding: 28px;
+		background: var(--surface);
+	}
+
+	/* Dot grid, like the original editor's preview, tuned subtle. */
+	.diagram-frame.grid {
+		background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+		background-size: 20px 20px;
+		background-position: -1px -1px;
 	}
 
 	.diagram {
 		max-width: 100%;
+		line-height: 0;
 	}
 
 	.diagram :global(svg) {
@@ -166,6 +197,32 @@
 		border: 1px solid var(--error-border);
 		border-radius: 6px;
 		padding: 4px 10px;
+	}
+
+	.grid-toggle {
+		position: absolute;
+		bottom: 12px;
+		right: 12px;
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border: 1px solid var(--border);
+		border-radius: 7px;
+		background: var(--surface);
+		color: var(--muted);
+		cursor: pointer;
+	}
+
+	.grid-toggle:hover {
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.grid-toggle[aria-pressed='true'] {
+		color: var(--accent);
+		background: var(--accent-soft);
+		border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 	}
 
 	/* Pele's zoom buttons: match the page instead of the diagram's variables. */

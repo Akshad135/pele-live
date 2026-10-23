@@ -210,39 +210,63 @@
 <style>
 	header {
 		display: flex;
-		align-items: baseline;
-		gap: 14px;
-		padding: 10px 18px;
+		align-items: center;
+		gap: 12px;
+		height: 52px;
+		padding: 0 16px;
 		border-bottom: 1px solid var(--border);
 		background: var(--surface);
+		flex-shrink: 0;
+	}
+
+	.wordmark {
+		font-weight: 650;
+		font-size: 15px;
+		color: var(--fg);
+		text-decoration: none;
+		letter-spacing: -0.01em;
+	}
+
+	.wordmark span {
+		color: var(--muted);
+		font-weight: 450;
+	}
+
+	.tagline {
+		font-size: 12.5px;
+		color: var(--muted);
 	}
 
 	.actions {
 		margin-left: auto;
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		align-self: center;
+		gap: 6px;
 	}
 
 	.action {
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
+		border: 1px solid transparent;
+		background: transparent;
 		color: var(--fg);
-		border-radius: var(--radius);
-		padding: 6px 14px;
+		border-radius: 8px;
+		padding: 6px 12px;
 		font-size: 13px;
+		font-weight: 500;
 		cursor: pointer;
+		transition: background 100ms;
 	}
 
 	.action:hover {
-		border-color: var(--accent);
+		background: var(--accent-soft);
 	}
 
 	.action.primary {
 		background: var(--accent);
-		border-color: var(--accent);
 		color: var(--accent-fg);
+	}
+
+	.action.primary:hover {
+		background: color-mix(in srgb, var(--accent) 88%, black);
 	}
 
 	.menu {
@@ -259,7 +283,7 @@
 	}
 
 	.menu[open] summary {
-		border-color: var(--accent);
+		background: var(--accent-soft);
 	}
 
 	.menu-list {
@@ -267,13 +291,15 @@
 		right: 0;
 		top: calc(100% + 6px);
 		z-index: 10;
-		min-width: 190px;
+		min-width: 200px;
 		max-height: 70vh;
 		overflow: auto;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: var(--radius);
-		box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+		border-radius: 10px;
+		box-shadow:
+			0 4px 12px rgb(0 0 0 / 0.08),
+			0 16px 32px rgb(0 0 0 / 0.08);
 		padding: 4px;
 		display: grid;
 	}
@@ -283,31 +309,13 @@
 		border: 0;
 		background: none;
 		padding: 7px 12px;
-		border-radius: 6px;
+		border-radius: 7px;
 		font-size: 13px;
 		cursor: pointer;
 	}
 
 	.menu-list button:hover {
-		background: color-mix(in srgb, var(--accent) 10%, transparent);
-	}
-
-	.wordmark {
-		font-weight: 700;
-		font-size: 17px;
-		color: var(--fg);
-		text-decoration: none;
-		letter-spacing: -0.02em;
-	}
-
-	.wordmark span {
-		color: var(--muted);
-		font-weight: 500;
-	}
-
-	.tagline {
-		font-size: 12.5px;
-		color: var(--muted);
+		background: var(--accent-soft);
 	}
 
 	main {
@@ -332,16 +340,17 @@
 	.editor-tabs {
 		display: flex;
 		gap: 2px;
-		padding: 6px 8px;
-		border-bottom: 1px solid var(--border);
+		padding: 8px 10px 0;
 	}
 
 	.editor-tabs button {
 		border: 1px solid transparent;
+		border-bottom: 0;
 		background: none;
-		border-radius: 6px;
-		padding: 4px 12px;
+		border-radius: 8px 8px 0 0;
+		padding: 6px 14px;
 		font-size: 12.5px;
+		font-weight: 500;
 		color: var(--muted);
 		cursor: pointer;
 	}
@@ -351,21 +360,21 @@
 	}
 
 	.editor-tabs button.active {
-		background: color-mix(in srgb, var(--accent) 10%, transparent);
+		background: var(--accent-soft);
 		color: var(--accent);
-		border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 	}
 
 	.editor-body {
 		flex: 1;
 		min-height: 0;
+		border-top: 1px solid var(--border);
 	}
 
 	.config-body {
 		display: flex;
 		flex-direction: column;
-		padding: 10px 12px;
-		gap: 8px;
+		padding: 12px 14px;
+		gap: 10px;
 	}
 
 	.config-editor {
@@ -373,12 +382,12 @@
 		min-height: 0;
 		resize: none;
 		border: 1px solid var(--border);
-		border-radius: var(--radius);
+		border-radius: 8px;
 		background: var(--bg);
 		color: var(--fg);
 		font-family: var(--mono);
 		font-size: 13px;
-		line-height: 1.5;
+		line-height: 1.55;
 		padding: 10px 12px;
 	}
 
