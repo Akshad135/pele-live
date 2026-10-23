@@ -1,3 +1,6 @@
+import { htmlWithState, pngWithState, svgWithState } from './embed';
+import { serializeState, type SharedState } from './serde';
+
 // pele CSS variables, resolved from the live page into exported files.
 const PELE_VARS = [
 	'--pele-bg',
@@ -14,6 +17,13 @@ const PELE_VARS = [
 	'--pele-radius',
 	...Array.from({ length: 8 }, (_, i) => `--pele-series-${i + 1}`)
 ];
+
+/** PNG export sizing, like the original editor's: double the natural size, or fit a given width/height. */
+export interface PngOptions {
+	mode: 'auto' | 'width' | 'height';
+	/** Target pixels for the chosen mode. Unused in auto mode. */
+	value: number;
+}
 
 /**
  * Inline the page's resolved theme variables on the SVG root, so an exported
@@ -41,20 +51,46 @@ function download(blob: Blob, filename: string) {
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function exportSvg(svg: string, source: Element) {
-	const resolved = withResolvedTheme(svg, source);
-	download(new Blob([resolved], { type: 'image/svg+xml;charset=utf-8' }), 'diagram.svg');
-}
-
-export function exportPng(svg: string, source: Element, scale = 2): Promise<void> {
-	const resolved = withResolvedTheme(svg, source);
+function naturalSize(resolved: string): { width: number; height: number } | null {
 	const width = Number(/width="([\d.]+)"/.exec(resolved)?.[1]);
 	const height = Number(/height="([\d.]+)"/.exec(resolved)?.[1]);
-	if (!width || !height) return Promise.reject(new Error('SVG has no intrinsic size.'));
+	return width > 0 && height > 0 ? { width, height } : null;
+}
+
+export function exportSvg(svg: string, source: Element, state?: SharedState) {
+	const resolved = withResolvedTheme(svg, source);
+	const withState = state ? svgWithState(resolved, serializeState(state)) : resolved;
+	download(new Blob([withState], { type: 'image/svg+xml;charset=utf-8' }), 'diagram.svg');
+}
+
+export function exportHtml(svg: string, source: Element, state: SharedState) {
+	const resolved = withResolvedTheme(svg, source);
+	const doc = htmlWithState(
+		resolved,
+		serializeState(state),
+		`${state.code.match(/^\S+/)?.[0] ?? 'Diagram'} — pele.live`
+	);
+	download(new Blob([doc], { type: 'text/html;charset=utf-8' }), 'diagram.html');
+}
+
+function svgSizeFor(options: PngOptions, natural: { width: number; height: number }) {
+	const value = Math.max(16, Math.min(16384, options.value));
+	if (options.mode === 'auto') {
+		return { width: natural.width * 2, height: natural.height * 2 };
+	}
+	if (options.mode === 'width') {
+		const scale = value / natural.width;
+		return { width: value, height: Math.max(1, Math.round(natural.height * scale)) };
+	}
+	const scale = value / natural.height;
+	return { width: Math.max(1, Math.round(natural.width * scale)), height: value };
+}
+
+function rasterize(resolved: string, target: { width: number; height: number }): Promise<Blob> {
 	// Browsers silently rasterize nothing beyond ~16384px per side; refuse
 	// instead of exporting a blank image.
-	if (width * scale > 16384 || height * scale > 16384) {
-		return Promise.reject(new Error('Diagram is too large to export as PNG at this scale.'));
+	if (target.width > 16384 || target.height > 16384) {
+		return Promise.reject(new Error('Target size is beyond the 16384px canvas limit.'));
 	}
 	return new Promise((resolve, reject) => {
 		const url = URL.createObjectURL(new Blob([resolved], { type: 'image/svg+xml;charset=utf-8' }));
@@ -62,8 +98,8 @@ export function exportPng(svg: string, source: Element, scale = 2): Promise<void
 		image.onload = () => {
 			URL.revokeObjectURL(url);
 			const canvas = document.createElement('canvas');
-			canvas.width = Math.round(width * scale);
-			canvas.height = Math.round(height * scale);
+			canvas.width = Math.round(target.width);
+			canvas.height = Math.round(target.height);
 			const ctx = canvas.getContext('2d');
 			if (!ctx) {
 				reject(new Error('Canvas is unavailable.'));
@@ -71,9 +107,8 @@ export function exportPng(svg: string, source: Element, scale = 2): Promise<void
 			}
 			ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 			canvas.toBlob((blob) => {
-				if (blob) download(blob, 'diagram.png');
+				if (blob) resolve(blob);
 				else reject(new Error('PNG encoding failed.'));
-				resolve();
 			}, 'image/png');
 		};
 		image.onerror = () => {
@@ -82,4 +117,48 @@ export function exportPng(svg: string, source: Element, scale = 2): Promise<void
 		};
 		image.src = url;
 	});
+}
+
+export async function exportPng(
+	svg: string,
+	source: Element,
+	options: PngOptions,
+	state?: SharedState
+): Promise<void> {
+	const resolved = withResolvedTheme(svg, source);
+	const natural = naturalSize(resolved);
+	if (!natural) throw new Error('SVG has no intrinsic size.');
+	const blob = await rasterize(resolved, svgSizeFor(options, natural));
+	const bytes = new Uint8Array(await blob.arrayBuffer());
+	const withState = state ? pngWithState(bytes, serializeState(state)) : bytes;
+	const kind = state ? 'diagram-with-editor-state.png' : 'diagram.png';
+	// `withState` is a fresh, fully-backed Uint8Array; hand its buffer to Blob.
+	download(new Blob([withState.buffer as ArrayBuffer], { type: 'image/png' }), kind);
+}
+
+export async function copyPng(
+	svg: string,
+	source: Element,
+	options: PngOptions,
+	state?: SharedState
+): Promise<void> {
+	if (typeof ClipboardItem === 'undefined') {
+		throw new Error('This browser cannot copy images.');
+	}
+	const resolved = withResolvedTheme(svg, source);
+	const natural = naturalSize(resolved);
+	if (!natural) throw new Error('SVG has no intrinsic size.');
+	const blob = await rasterize(resolved, svgSizeFor(options, natural));
+	if (state) {
+		const bytes = pngWithState(new Uint8Array(await blob.arrayBuffer()), serializeState(state));
+		await navigator.clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' }) })]);
+	} else {
+		await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+	}
+}
+
+export async function copySvg(svg: string, source: Element, state?: SharedState): Promise<void> {
+	const resolved = withResolvedTheme(svg, source);
+	const withState = state ? svgWithState(resolved, serializeState(state)) : resolved;
+	await navigator.clipboard.writeText(withState);
 }

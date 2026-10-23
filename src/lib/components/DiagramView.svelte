@@ -1,18 +1,28 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { RenderOutcome } from '$lib/render';
-	import { exportPng, exportSvg, withResolvedTheme } from '$lib/export';
+	import {
+		copyPng,
+		copySvg,
+		exportHtml,
+		exportPng,
+		exportSvg,
+		type PngOptions
+	} from '$lib/export';
+	import type { SharedState } from '$lib/serde';
 	import { scopeCss } from '$lib/scopedCss';
 
 	interface Props {
 		outcome: RenderOutcome;
 		/** User CSS, scoped to this preview. */
 		css?: string;
+		/** Editor state embedded into exports so files can be re-imported. */
+		shared?: SharedState;
 		/** Opens the current diagram in its own tab. Button hidden when absent. */
 		onpopout?: () => void;
 	}
 
-	let { outcome, css = '', onpopout }: Props = $props();
+	let { outcome, css = '', shared, onpopout }: Props = $props();
 
 	// --- Pan & zoom ----------------------------------------------------------
 	// Own implementation: pele's enableZoom cannot pan at fit and its clamping
@@ -231,6 +241,93 @@
 
 	$effect(() => () => clearTimeout(copyTimer));
 
+	function flashCopied() {
+		copied = true;
+		clearTimeout(copyTimer);
+		copyTimer = setTimeout(() => (copied = false), 1600);
+	}
+
+	// PNG export sizing: auto (2x) or fit a chosen width/height.
+	let pngOpen = $state(false);
+	let pngMode = $state<'auto' | 'width' | 'height'>('auto');
+	let pngValue = $state(1080);
+
+	function pngOptions(): PngOptions {
+		return { mode: pngMode, value: Math.max(16, Math.min(16384, pngValue || 0)) };
+	}
+
+	// Close the PNG popover on Escape or a click outside of it.
+	$effect(() => {
+		if (!pngOpen) return;
+		const close = (event: Event) => {
+			if (!(event.target instanceof Element)) return;
+			if (event.target.closest('.png-popover, .png-toggle')) return;
+			pngOpen = false;
+		};
+		const keyClose = (event: KeyboardEvent) => {
+			if (event.key === 'Escape') pngOpen = false;
+		};
+		document.addEventListener('click', close);
+		document.addEventListener('keydown', keyClose);
+		return () => {
+			document.removeEventListener('click', close);
+			document.removeEventListener('keydown', keyClose);
+		};
+	});
+
+	async function onCopySvg() {
+		if (!outcome.ok || !frame) return;
+		const source = frame.querySelector('svg');
+		if (!source) return;
+		try {
+			await copySvg(outcome.svg, source, shared);
+			flashCopied();
+		} catch {
+			exportError = 'Clipboard is unavailable here.';
+		}
+	}
+
+	async function onDownloadSvg() {
+		if (!outcome.ok || !frame) return;
+		const source = frame.querySelector('svg');
+		if (!source) return;
+		exportSvg(outcome.svg, source, shared);
+	}
+
+	async function onDownloadHtml() {
+		if (!outcome.ok || !frame || !shared) return;
+		const source = frame.querySelector('svg');
+		if (!source) return;
+		exportHtml(outcome.svg, source, shared);
+	}
+
+	async function onDownloadPng() {
+		if (!outcome.ok) return;
+		const source = frame?.querySelector('svg');
+		if (!source) return;
+		exportError = '';
+		try {
+			await exportPng(outcome.svg, source, pngOptions(), shared);
+			pngOpen = false;
+		} catch (e) {
+			exportError = e instanceof Error ? e.message : 'PNG export failed.';
+		}
+	}
+
+	async function onCopyPng() {
+		if (!outcome.ok) return;
+		const source = frame?.querySelector('svg');
+		if (!source) return;
+		exportError = '';
+		try {
+			await copyPng(outcome.svg, source, pngOptions(), shared);
+			flashCopied();
+			pngOpen = false;
+		} catch (e) {
+			exportError = e instanceof Error ? e.message : 'Could not copy the image.';
+		}
+	}
+
 	// Grid toggle, persisted like the original editor's.
 	const GRID_KEY = 'pele-live:grid';
 	let grid = $state(
@@ -255,39 +352,6 @@
 			}
 		} catch {
 			// Fullscreen can be refused (permissions policy, iframe); the button just does nothing.
-		}
-	}
-
-	async function copySvg() {
-		if (!outcome.ok || !frame) return;
-		const source = frame.querySelector('svg');
-		if (!source) return;
-		try {
-			await navigator.clipboard.writeText(withResolvedTheme(outcome.svg, source));
-			copied = true;
-			clearTimeout(copyTimer);
-			copyTimer = setTimeout(() => (copied = false), 1600);
-		} catch {
-			exportError = 'Clipboard is unavailable here.';
-		}
-	}
-
-	async function downloadSvg() {
-		if (!outcome.ok || !frame) return;
-		const source = frame.querySelector('svg');
-		if (!source) return;
-		exportSvg(outcome.svg, source);
-	}
-
-	async function downloadPng() {
-		if (!outcome.ok) return;
-		const source = frame?.querySelector('svg');
-		if (!source) return;
-		exportError = '';
-		try {
-			await exportPng(outcome.svg, source);
-		} catch (e) {
-			exportError = e instanceof Error ? e.message : 'PNG export failed.';
 		}
 	}
 </script>
@@ -340,10 +404,49 @@
 			</button>
 		</div>
 		<div class="toolbar">
-			<button onclick={copySvg}>{copied ? 'Copied' : 'Copy SVG'}</button>
-			<button onclick={downloadSvg}>SVG</button>
-			<button onclick={downloadPng}>PNG</button>
+			<button onclick={onCopySvg}>{copied ? 'Copied' : 'Copy SVG'}</button>
+			<button onclick={onDownloadSvg}>SVG</button>
+			<button class="png-toggle" onclick={() => (pngOpen = !pngOpen)} aria-expanded={pngOpen}>
+				PNG
+			</button>
+			{#if shared}
+				<button onclick={onDownloadHtml}>HTML</button>
+			{/if}
 		</div>
+		{#if pngOpen}
+			<div class="png-popover" role="group" aria-label="PNG export options">
+				<div class="png-modes">
+					{#each ['auto', 'width', 'height'] as mode (mode)}
+						<button
+							aria-pressed={pngMode === mode}
+							class:active={pngMode === mode}
+							onclick={() => (pngMode = mode as 'auto' | 'width' | 'height')}
+						>
+							{mode}
+						</button>
+					{/each}
+				</div>
+				{#if pngMode !== 'auto'}
+					<label class="png-size">
+						{pngMode === 'width' ? 'Width' : 'Height'}
+						<input type="number" min="16" max="16384" bind:value={pngValue} />
+						px
+					</label>
+				{/if}
+				<div class="png-actions">
+					<button class="primary" onclick={onDownloadPng}>Download PNG</button>
+					<button onclick={onCopyPng}>Copy image</button>
+				</div>
+				<p class="png-hint">
+					{#if pngMode === 'auto'}
+						Twice the diagram's natural size.
+					{:else}
+						The other axis follows the diagram's aspect ratio.
+					{/if}
+					Files carry the editor state, so they can be re-imported.
+				</p>
+			</div>
+		{/if}
 		<div class="side-tools">
 			{#if onpopout}
 				<button onclick={onpopout} title="Open the diagram in its own tab">
@@ -533,6 +636,98 @@
 		border: 1px solid var(--error-border);
 		border-radius: 6px;
 		padding: 4px 10px;
+	}
+
+	.png-popover {
+		position: absolute;
+		bottom: 44px;
+		left: 12px;
+		display: grid;
+		gap: 8px;
+		padding: 10px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		box-shadow: 0 12px 40px rgb(0 0 0 / 0.16);
+		z-index: 10;
+	}
+
+	.png-modes {
+		display: flex;
+		gap: 2px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 2px;
+	}
+
+	.png-modes button {
+		border: 0;
+		background: transparent;
+		color: var(--muted);
+		font-size: 12px;
+		font-weight: 500;
+		padding: 3px 10px;
+		border-radius: 6px;
+		cursor: pointer;
+		text-transform: capitalize;
+	}
+
+	.png-modes button.active {
+		background: var(--surface);
+		color: var(--fg);
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+	}
+
+	.png-size {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 12px;
+		color: var(--muted);
+	}
+
+	.png-size input {
+		width: 76px;
+		font: inherit;
+		font-size: 12.5px;
+		color: var(--fg);
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 3px 6px;
+	}
+
+	.png-actions {
+		display: flex;
+		gap: 4px;
+	}
+
+	.png-actions button {
+		flex: 1;
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--fg);
+		font-size: 12px;
+		font-weight: 500;
+		border-radius: 7px;
+		padding: 5px 10px;
+		cursor: pointer;
+		white-space: nowrap;
+	}
+
+	.png-actions button:hover {
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.png-hint {
+		margin: 0;
+		max-width: 240px;
+		font-size: 11.5px;
+		line-height: 1.45;
+		color: var(--muted);
 	}
 
 	.error-banner {

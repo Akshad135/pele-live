@@ -105,6 +105,41 @@ test('export produces an SVG download with resolved theme', async ({ page, conte
 	await page.getByRole('button', { name: 'SVG', exact: true }).click();
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toBe('diagram.svg');
+	// Exports embed the editor state so they can be imported back.
+	const path = await download.path();
+	const svg = (await import('node:fs/promises')).readFile(path, 'utf8');
+	expect(await svg).toContain('pele-live-state');
+});
+
+test('HTML export downloads a standalone page', async ({ page }) => {
+	const downloadPromise = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'HTML', exact: true }).click();
+	const download = await downloadPromise;
+	expect(download.suggestedFilename()).toBe('diagram.html');
+	expect(await (await import('node:fs/promises')).readFile(await download.path(), 'utf8')).toContain(
+		'<meta name="pele-live-state"'
+	);
+});
+
+test('PNG popover offers size modes and downloads with state', async ({ page }) => {
+	await page.locator('.toolbar .png-toggle').click();
+	await expect(page.locator('.png-popover')).toBeVisible();
+	await page.locator('.png-modes button', { hasText: 'width' }).click();
+	await page.locator('.png-size input').fill('800');
+	const downloadPromise = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Download PNG' }).click();
+	const download = await downloadPromise;
+	expect(download.suggestedFilename()).toBe('diagram-with-editor-state.png');
+});
+
+test('importing a .mmd file loads it into the editor', async ({ page }) => {
+	await page.setInputFiles('input[type=file]', {
+		name: 'plan.mmd',
+		mimeType: 'text/plain',
+		buffer: Buffer.from('pie title Imported\n "a": 1')
+	});
+	await expect(page.locator('.source-editor .cm-content')).toContainText('pie title Imported');
+	await expect(page.locator('.badge')).toHaveText('pie');
 });
 
 test('popout opens the diagram in its own tab with an editor way back', async ({ page }) => {

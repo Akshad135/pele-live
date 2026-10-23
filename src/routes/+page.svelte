@@ -4,6 +4,7 @@
 	import SourceEditor from '$lib/components/SourceEditor.svelte';
 	import { appState, loadedFromHash } from '$lib/state.svelte';
 	import { history as diagramHistory } from '$lib/history.svelte';
+	import { importDiagramFile } from '$lib/importDiagram';
 	import { parseConfig, renderDiagram } from '$lib/render';
 	import { PeleError } from 'pele';
 	import { serializeState } from '$lib/serde';
@@ -100,6 +101,45 @@
 		samplesOpen = false;
 	}
 
+	// --- Import (.mmd or any export of this editor with embedded state) ------
+	let fileInput = $state<HTMLInputElement | undefined>();
+	let dragOver = $state(false);
+	let importError = $state('');
+	let importErrorTimer: ReturnType<typeof setTimeout> | undefined;
+
+	async function importFiles(files: FileList | undefined | null) {
+		const file = files?.[0];
+		if (!file) return;
+		try {
+			const result = await importDiagramFile(file);
+			if ('error' in result) {
+				importError = result.error;
+			} else {
+				appState.load(result);
+				history.replaceState(null, '', window.location.pathname);
+				importError = result.warn ?? '';
+			}
+		} catch {
+			importError = `Could not read ${file.name}.`;
+		}
+		if (fileInput) fileInput.value = '';
+		clearTimeout(importErrorTimer);
+		importErrorTimer = setTimeout(() => (importError = ''), 4000);
+	}
+
+	function onDrop(event: DragEvent) {
+		event.preventDefault();
+		dragOver = false;
+		if (event.dataTransfer?.files.length) void importFiles(event.dataTransfer.files);
+	}
+
+	function onDragLeave(event: DragEvent) {
+		// Child crossings also fire dragleave on the shell; only a real exit
+		// (relatedTarget outside, or leaving the window) hides the veil.
+		const shell = event.currentTarget as HTMLElement | null;
+		if (!shell || !shell.contains(event.relatedTarget as Node | null)) dragOver = false;
+	}
+
 	let samplesOpen = $state(false);
 	let historyOpen = $state(false);
 	let editorTab = $state<'diagram' | 'config' | 'css'>('diagram');
@@ -167,7 +207,23 @@
 	/>
 </svelte:head>
 
-<div class="shell">
+<!-- svelte-ignore a11y_no_static_element_interactions -- Drag-drop is a duplicate of the Import button; the shell has no single role. -->
+<div
+	class="shell"
+	class:drag-over={dragOver}
+	ondragover={(e) => {
+		e.preventDefault();
+		dragOver = true;
+	}}
+	ondragleave={onDragLeave}
+	ondrop={onDrop}
+>
+	{#if importError}
+		<p class="import-toast" role="alert">{importError}</p>
+	{/if}
+	{#if dragOver}
+		<div class="drop-hint" aria-hidden="true">Drop to import</div>
+	{/if}
 	<header>
 		<a class="wordmark" href="/">
 			<svg class="mark" width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
@@ -201,6 +257,20 @@
 			>
 				History
 			</button>
+			<button
+				class="action"
+				onclick={() => fileInput?.click()}
+				title="Import a .mmd file, or an SVG/PNG/HTML exported from here"
+			>
+				Import
+			</button>
+			<input
+				bind:this={fileInput}
+				type="file"
+				accept=".mmd,.mermaid,.txt,.svg,.png,.html,.htm"
+				hidden
+				onchange={(e) => importFiles(e.currentTarget.files)}
+			/>
 			<button
 				class="action"
 				onclick={() => themeState.cycle()}
@@ -287,7 +357,12 @@
 			onpointerdown={startDrag}
 		></div>
 		<section class="pane" aria-label="Diagram preview">
-			<DiagramView {outcome} css={appState.css} onpopout={popout} />
+			<DiagramView
+				{outcome}
+				css={appState.css}
+				shared={{ code: appState.code, config: appState.config, css: appState.css }}
+				onpopout={popout}
+			/>
 		</section>
 	</div>
 </main>
