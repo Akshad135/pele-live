@@ -1,6 +1,8 @@
 export interface Sample {
 	name: string;
 	source: string;
+	/** Optional custom CSS loaded into the CSS tab with the sample. */
+	css?: string;
 }
 
 export const SAMPLES: Sample[] = [
@@ -173,5 +175,59 @@ Pele,Errors,5`
     type: renderer
   }
   pele - satisfies -> fast`
+	},
+	{
+		name: 'Styling · classDef & linkStyle',
+		source: `flowchart LR
+  A[Mermaid text] --> B{Pele}
+  B -->|fast| C[SVG]
+  B -->|errors| D[Line numbers]
+  C --> E[Share it]
+  class A source
+  classDef source fill:#2563eb,color:#fff,stroke:none
+  classDef good fill:#16a34a,color:#fff,stroke:none
+  classDef warn fill:#d97706,color:#fff,stroke:none
+  class C,E good
+  D:::warn
+  linkStyle 0 stroke:#2563eb,stroke-width:3px
+  linkStyle 2 stroke:#16a34a,stroke-width:3px
+  linkStyle default stroke-dasharray:4 3,color:#94a3b8`
+	},
+	{
+		name: 'Styling · frontmatter & init',
+		source: `---
+title: Publish pipeline
+config:
+  flowchart:
+    curve: step
+    nodeSpacing: 60
+---
+flowchart TB
+  Draft --> Review --> Schedule --> Publish
+  Publish --> Live[(Live site)]
+  %%{init: {"theme": {"series-1": "#7c3aed"}}}%%`
+	},
+	{
+		name: 'Styling · custom CSS',
+		source: `flowchart LR
+  web[Web app] --> api[API]
+  api --> db[(Database)]
+  api --> cache[Cache]
+  click web href "https://example.com"`,
+		css: `.diagram-frame svg .pele-node rect,
+.diagram-frame svg .pele-node polygon,
+.diagram-frame svg .pele-node path {
+  fill: #eef4ff;
+  stroke: #2563eb;
+  stroke-width: 1.5px;
+}
+.diagram-frame svg .pele-node[data-id='db'] * {
+  fill: #fff7ed;
+  stroke: #d97706;
+}
+.diagram-frame svg .pele-edge-label {
+  font-size: 13px;
+  color: #475569;
+}`
 	}
 ];

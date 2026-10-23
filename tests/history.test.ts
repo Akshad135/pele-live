@@ -78,6 +78,16 @@ describe('history', () => {
 		expect(history.manual).toHaveLength(1);
 	});
 
+	it('treats a CSS-only change as a new version', () => {
+		history.save('base');
+		appState.css = '.pele-node { fill: red }';
+		history.save('styled');
+		expect(history.manual).toHaveLength(2);
+		expect(history.manual[0].state.css).toContain('fill: red');
+		history.restore(history.manual[1].id);
+		expect(appState.css).toBe('');
+	});
+
 	it('restores code and config together', () => {
 		appState.load({ code: 'flowchart LR\n X --> Y', config: '{"theme":"dark"}' });
 		history.save('with config');

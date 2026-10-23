@@ -69,7 +69,8 @@
 	async function share() {
 		const url = `${window.location.origin}${window.location.pathname}#${serializeState({
 			code: appState.code,
-			config: appState.config
+			config: appState.config,
+			css: appState.css
 		})}`;
 		try {
 			await navigator.clipboard.writeText(url);
@@ -85,7 +86,8 @@
 	function popout() {
 		const url = `${window.location.origin}/view#${serializeState({
 			code: appState.code,
-			config: appState.config
+			config: appState.config,
+			css: appState.css
 		})}`;
 		window.open(url, '_blank', 'noopener');
 	}
@@ -93,14 +95,14 @@
 	function openSample(name: string) {
 		const sample = SAMPLES.find((s) => s.name === name);
 		if (!sample) return;
-		appState.load({ code: sample.source, config: '{}' });
+		appState.load({ code: sample.source, config: '{}', css: sample.css ?? '' });
 		history.replaceState(null, '', window.location.pathname);
 		samplesOpen = false;
 	}
 
 	let samplesOpen = $state(false);
 	let historyOpen = $state(false);
-	let editorTab = $state<'diagram' | 'config'>('diagram');
+	let editorTab = $state<'diagram' | 'config' | 'css'>('diagram');
 	// The theme label is rendered after hydration: the prerendered page cannot
 	// know the saved choice, and a differing label would be a hydration mismatch.
 	let mounted = $state(false);
@@ -233,12 +235,19 @@
 				>
 					Config
 				</button>
+				<button
+					aria-pressed={editorTab === 'css'}
+					class:active={editorTab === 'css'}
+					onclick={() => (editorTab = 'css')}
+				>
+					CSS
+				</button>
 			</div>
 			{#if editorTab === 'diagram'}
 				<div class="editor-body">
 					<SourceEditor value={appState.code} oninput={(code) => (appState.code = code)} error={sourceError} />
 				</div>
-			{:else}
+			{:else if editorTab === 'config'}
 				<div class="editor-body config-body">
 					<textarea
 						class="config-editor"
@@ -254,6 +263,20 @@
 						</p>
 					{/if}
 				</div>
+			{:else}
+				<div class="editor-body config-body">
+					<textarea
+						class="config-editor css-editor"
+						spellcheck="false"
+						aria-label="Custom diagram CSS"
+						placeholder={'.pele-node {\n  fill: #eef4ff;\n}'}
+						bind:value={appState.css}
+					></textarea>
+					<p class="config-hint">
+						CSS scoped to the preview. Style pele's classes — .pele-node, .pele-edge,
+						.pele-label, .pele-cluster, [data-id] — or plain svg selectors.
+					</p>
+				</div>
 			{/if}
 		</section>
 		<div
@@ -264,7 +287,7 @@
 			onpointerdown={startDrag}
 		></div>
 		<section class="pane" aria-label="Diagram preview">
-			<DiagramView {outcome} onpopout={popout} />
+			<DiagramView {outcome} css={appState.css} onpopout={popout} />
 		</section>
 	</div>
 </main>

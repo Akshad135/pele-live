@@ -1,48 +1,230 @@
 <script lang="ts">
-	import { enableZoom, type Zoom } from 'pele';
+	import { untrack } from 'svelte';
 	import type { RenderOutcome } from '$lib/render';
 	import { exportPng, exportSvg, withResolvedTheme } from '$lib/export';
+	import { scopeCss } from '$lib/scopedCss';
 
 	interface Props {
 		outcome: RenderOutcome;
+		/** User CSS, scoped to this preview. */
+		css?: string;
 		/** Opens the current diagram in its own tab. Button hidden when absent. */
 		onpopout?: () => void;
 	}
 
-	let { outcome, onpopout }: Props = $props();
+	let { outcome, css = '', onpopout }: Props = $props();
+
+	// --- Pan & zoom ----------------------------------------------------------
+	// Own implementation: pele's enableZoom cannot pan at fit and its clamping
+	// assumes an untransformed svg. Here the canvas translates/scales freely and
+	// every diagram that doesn't fit the pane is fitted on render.
 
 	let frame = $state<HTMLDivElement | undefined>();
-	// The element whose first element child is the svg — what enableZoom needs.
+	// The transformed wrapper around the svg.
 	let stage = $state<HTMLDivElement | undefined>();
-	let zoom: Zoom | undefined;
 
-	$effect(() => {
-		if (!stage) return;
-		// `always`: a playground diagram may fit its pane and still be worth zooming.
-		// `controls: false`: the toolbar below is ours, styled like the rest of the app.
-		const instance = enableZoom(stage, { always: true, maxScale: 8, controls: false });
-		zoom = instance;
-		return () => {
-			if (zoom === instance) zoom = undefined;
-			instance.destroy();
-		};
-	});
+	const MAX_SCALE = 8;
+	const PAN_MARGIN = 48;
+
+	let view = $state({ scale: 1, x: 0, y: 0 });
+	// The size key the current view was laid out for; refits only when the
+	// diagram's natural size changes, so typing while panned keeps the view.
+	let laidOutSize = '';
+
+	function svgSize(): { w: number; h: number } | null {
+		const svg = stage?.querySelector('svg');
+		if (!svg) return null;
+		const w = svg.width.baseVal.value;
+		const h = svg.height.baseVal.value;
+		return w > 0 && h > 0 ? { w, h } : null;
+	}
+
+	/** Fit the diagram into the pane (shrink-only) and center it. */
+	function fit() {
+		const size = untrack(svgSize);
+		const rect = untrack(() => frame?.getBoundingClientRect());
+		if (!size || !rect || rect.width <= 0 || rect.height <= 0) return;
+		const scale = Math.min((rect.width - 56) / size.w, (rect.height - 56) / size.h, 1);
+		view = { scale, x: 0, y: 0 };
+		laidOutSize = `${size.w}x${size.h}`;
+	}
+
+	function clampPan() {
+		const size = untrack(svgSize);
+		const rect = untrack(() => frame?.getBoundingClientRect());
+		if (!size || !rect) return;
+		const halfW = (size.w * view.scale) / 2 + rect.width / 2 - PAN_MARGIN;
+		const halfH = (size.h * view.scale) / 2 + rect.height / 2 - PAN_MARGIN;
+		view.x = Math.min(halfW, Math.max(-halfW, view.x));
+		view.y = Math.min(halfH, Math.max(-halfH, view.y));
+	}
+
+	/** Scales by `factor` keeping the point (clientX, clientY) stationary. */
+	function zoomAt(factor: number, clientX: number, clientY: number) {
+		const rect = frame?.getBoundingClientRect();
+		if (!rect) return;
+		const px = clientX - rect.left - rect.width / 2;
+		const py = clientY - rect.top - rect.height / 2;
+		const next = Math.min(MAX_SCALE, Math.max(0.05, view.scale * factor));
+		const applied = next / view.scale;
+		view.x = px - (px - view.x) * applied;
+		view.y = py - (py - view.y) * applied;
+		view.scale = next;
+		clampPan();
+	}
 
 	function zoomBy(factor: number) {
-		zoom?.zoomBy(factor);
+		const rect = frame?.getBoundingClientRect();
+		if (!rect) return;
+		zoomAt(factor, rect.left + rect.width / 2, rect.top + rect.height / 2);
 	}
 
 	function zoomReset() {
-		zoom?.reset();
+		fit();
 	}
 
-	// Pele's zoom does not watch the DOM: it needs refresh() to pick up the
-	// svg that {@html} replaces on every render.
+	function onWheel(event: WheelEvent) {
+		// Plain wheel zooms, like every canvas editor. Without preventDefault
+		// ctrl+wheel would zoom the whole page instead.
+		event.preventDefault();
+		const turn = Math.min(Math.max(-event.deltaY, -60), 60);
+		zoomAt(2 ** (turn * 0.0022), event.clientX, event.clientY);
+	}
+
+	let panning = $state(false);
+
+	function startPan(event: PointerEvent) {
+		if (event.button !== 0 || !outcome.ok) return;
+		// The floating toolbars keep their own clicks.
+		if (event.target instanceof Element && event.target.closest('button, a, input, .toolbar, .side-tools, .zoom-tools')) {
+			return;
+		}
+		const startX = event.clientX;
+		const startY = event.clientY;
+		const baseX = view.x;
+		const baseY = view.y;
+		panning = true;
+		const move = (e: PointerEvent) => {
+			view.x = baseX + (e.clientX - startX);
+			view.y = baseY + (e.clientY - startY);
+			clampPan();
+		};
+		const up = () => {
+			panning = false;
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', up);
+			window.removeEventListener('pointercancel', up);
+		};
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', up);
+		window.addEventListener('pointercancel', up);
+	}
+
+	function onDoubleClick(event: MouseEvent) {
+		if (event.target instanceof Element && event.target.closest('button, a')) return;
+		const size = untrack(svgSize);
+		const rect = frame?.getBoundingClientRect();
+		if (!size || !rect) return;
+		if (view.scale > fitScale() + 0.01) {
+			fit();
+		} else {
+			zoomAt(Math.max(1, (size.w < rect.width && size.h < rect.height ? 2 : 1.25)) / view.scale, event.clientX, event.clientY);
+		}
+	}
+
+	function fitScale() {
+		const size = untrack(svgSize);
+		const rect = untrack(() => frame?.getBoundingClientRect());
+		if (!size || !rect || rect.width === 0) return 1;
+		return Math.min((rect.width - 56) / size.w, (rect.height - 56) / size.h, 1);
+	}
+
+	// Fit whenever the rendered svg's natural size appears for the first time;
+	// same-size re-renders (typing) keep the current pan/zoom.
 	$effect(() => {
 		void outcome;
-		zoom?.refresh();
+		void roughDone;
+		const size = svgSize();
+		const key = size ? `${size.w}x${size.h}` : '';
+		if (key && key !== laidOutSize) fit();
 	});
 
+	// Refit when the pane itself is resized.
+	$effect(() => {
+		if (!frame) return;
+		const observer = new ResizeObserver(() => fit());
+		observer.observe(frame);
+		return () => observer.disconnect();
+	});
+
+	// --- Hand-drawn (rough) mode ---------------------------------------------
+	const ROUGH_KEY = 'pele-live:rough';
+	let roughOn = $state(typeof localStorage !== 'undefined' && localStorage.getItem(ROUGH_KEY) === 'on');
+	// Hidden holder for the pristine pele svg that svg2roughjs consumes.
+	let roughSource = $state<HTMLDivElement | undefined>();
+	// Where the sketch output lands while rough mode is on.
+	let sketchHost = $state<HTMLDivElement | undefined>();
+	// Flips true once a sketch finished; part of the layout effect's inputs.
+	let roughDone = $state(0);
+
+	function toggleRough() {
+		roughOn = !roughOn;
+		try {
+			localStorage.setItem(ROUGH_KEY, roughOn ? 'on' : 'off');
+		} catch {
+			// The toggle still works this session if saving fails.
+		}
+		if (!roughOn) roughDone++;
+	}
+
+	$effect(() => {
+		void outcome; // re-sketch whenever the diagram is re-rendered
+		if (!roughOn) return;
+		const source = untrack(() => roughSource?.querySelector('svg'));
+		const host = untrack(() => sketchHost);
+		if (!source || !host) return;
+		let cancelled = false;
+		// svg2roughjs sketches synchronously; debounce so typing a large
+		// diagram doesn't re-sketch on every keystroke. The previous sketch
+		// stays visible until the fresh one replaces it.
+		const timer = setTimeout(() => {
+			void (async () => {
+				const { Svg2Roughjs } = await import('svg2roughjs');
+				if (cancelled) return;
+				const sketcher = new Svg2Roughjs(host);
+				sketcher.fontFamily = getComputedStyle(document.body).fontFamily;
+				sketcher.svg = source;
+				await sketcher.sketch(true);
+				if (cancelled) return;
+				roughDone++;
+			})();
+		}, 150);
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+		};
+	});
+
+	// --- User CSS ------------------------------------------------------------
+	let cssEl = $state<HTMLStyleElement | undefined>();
+
+	$effect(() => {
+		if (!frame) return;
+		const el = document.createElement('style');
+		el.dataset.userCss = '';
+		frame.appendChild(el);
+		cssEl = el;
+		return () => {
+			if (cssEl === el) cssEl = undefined;
+			el.remove();
+		};
+	});
+
+	$effect(() => {
+		if (cssEl) cssEl.textContent = scopeCss(css, '.diagram-frame');
+	});
+
+	// --- Toolbar actions ------------------------------------------------------
 	let copied = $state(false);
 	let copyTimer: ReturnType<typeof setTimeout> | undefined;
 	let exportError = $state('');
@@ -110,18 +292,47 @@
 	}
 </script>
 
-<div class="diagram-frame" class:has-error={!outcome.ok} class:grid={grid && outcome.ok} bind:this={frame}>
+<div
+	class="diagram-frame"
+	class:has-error={!outcome.ok}
+	class:grid={grid && outcome.ok}
+	bind:this={frame}
+>
 	{#if outcome.ok}
-		<div class="diagram" bind:this={stage}>
-			<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
-			{@html outcome.svg}
+		<div
+			class="diagram"
+			role="application"
+			aria-label="Diagram canvas — drag to pan, scroll to zoom"
+			class:panning
+			onwheel={onWheel}
+			onpointerdown={startPan}
+			ondblclick={onDoubleClick}
+		>
+			<div
+				class="canvas"
+				bind:this={stage}
+				style={`transform: translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.scale})`}
+			>
+				{#if roughOn}
+					<div class="sketch-host" bind:this={sketchHost}></div>
+				{:else}
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
+					{@html outcome.svg}
+				{/if}
+			</div>
 		</div>
+		{#if roughOn}
+			<div class="rough-source" aria-hidden="true" bind:this={roughSource}>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
+				{@html outcome.svg}
+			</div>
+		{/if}
 		<span class="badge" title="Rendered diagram type">{outcome.diagramType}</span>
 		<div class="zoom-tools">
 			<button onclick={() => zoomBy(0.8)} title="Zoom out">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
 			</button>
-			<button onclick={zoomReset} title="Reset zoom (drag the canvas to pan once zoomed)">
+			<button onclick={zoomReset} title="Reset zoom">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2-7.5L3 7" /></svg>
 			</button>
 			<button onclick={() => zoomBy(1.25)} title="Zoom in">
@@ -144,6 +355,11 @@
 			<button onclick={fullscreen} title="Fullscreen">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 					<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
+				</svg>
+			</button>
+			<button onclick={toggleRough} title={roughOn ? 'Hand-drawn look is on' : 'Hand-drawn look'} aria-pressed={roughOn}>
+				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+					<path d="M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586" />
 				</svg>
 			</button>
 			<button onclick={toggleGrid} title={grid ? 'Hide grid' : 'Show grid'} aria-pressed={grid}>
@@ -174,6 +390,7 @@
 		display: grid;
 		place-items: center;
 		background: var(--surface);
+		touch-action: none;
 	}
 
 	/* Dot grid, like the original editor's preview, tuned subtle. */
@@ -183,22 +400,43 @@
 		background-position: -1px -1px;
 	}
 
-	/* The zoom stage: pele zooms within this element, so it fills the pane —
-	   at rest the drawing is centered; zoomed, it uses the whole canvas. */
+	/* The pan/zoom viewport: fills the pane; the canvas inside is transformed.
+	   Absolutely centered, so diagrams taller than the pane stay centered too. */
 	.diagram {
+		position: relative;
 		width: 100%;
 		height: 100%;
 		min-width: 0;
 		min-height: 0;
-		display: grid;
-		place-items: center;
-		padding: 28px;
+		overflow: hidden;
 		line-height: 0;
+		cursor: grab;
+		user-select: none;
+		-webkit-user-select: none;
 	}
 
-	.diagram :global(svg) {
-		max-width: 100%;
-		height: auto;
+	.diagram.panning {
+		cursor: grabbing;
+	}
+
+	.canvas {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform-origin: center;
+		will-change: transform;
+	}
+
+	/* The pristine svg that svg2roughjs reads; kept rendered but invisible. */
+	.rough-source {
+		position: absolute;
+		left: -100000px;
+		top: 0;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		opacity: 0;
+		pointer-events: none;
 	}
 
 	.badge {
@@ -214,10 +452,9 @@
 		padding: 2px 10px;
 	}
 
+	.zoom-tools,
 	.toolbar {
 		position: absolute;
-		bottom: 14px;
-		left: 14px;
 		display: flex;
 		gap: 2px;
 		padding: 3px;
@@ -230,18 +467,13 @@
 	}
 
 	.zoom-tools {
-		position: absolute;
 		top: 14px;
 		right: 14px;
-		display: flex;
-		gap: 2px;
-		padding: 3px;
-		background: color-mix(in srgb, var(--surface) 72%, transparent);
-		backdrop-filter: blur(10px);
-		-webkit-backdrop-filter: blur(10px);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
+	}
+
+	.toolbar {
+		bottom: 14px;
+		left: 14px;
 	}
 
 	.toolbar button,

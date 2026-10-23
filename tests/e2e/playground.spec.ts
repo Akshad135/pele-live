@@ -12,33 +12,42 @@ test('renders the default diagram', async ({ page }) => {
 	await expect(page.locator('.badge')).toHaveText('flowchart');
 });
 
-test('zoom controls zoom the canvas and drag pans once zoomed', async ({ page }) => {
-	const viewBox = () => page.locator('.diagram svg').first().getAttribute('viewBox');
-	const initial = await viewBox();
-	expect(initial).toBeTruthy();
+test('canvas fits, zooms, and pans with the cursor at any zoom', async ({ page }) => {
+	const transform = () =>
+		page.locator('.canvas').getAttribute('style').then((s) => (s ?? '').replace(/;$/, ''));
+	const initial = await transform();
+	expect(initial).toContain('scale(1)');
 
-	// Toolbar zoom changes the viewBox; reset brings it back.
+	// Toolbar zoom changes the transform; reset brings it back.
 	await page.locator('.zoom-tools button[title="Zoom in"]').click();
 	await page.locator('.zoom-tools button[title="Zoom in"]').click();
-	const zoomed = await viewBox();
+	const zoomed = await transform();
 	expect(zoomed).not.toBe(initial);
 	await page.locator('.zoom-tools button[title*="Reset zoom"]').click();
-	expect(await viewBox()).toBe(initial);
+	expect(await transform()).toBe(initial);
 
-	// Pele pans by rewriting the viewBox on drag — but only once zoomed in.
+	// Dragging pans at any zoom, fit included.
 	const box = await page.locator('.diagram').boundingBox();
-	await page.locator('.diagram').dblclick({ position: { x: 200, y: 150 } });
-	const afterDblclick = await viewBox();
-	expect(afterDblclick).not.toBe(initial);
-
 	const cx = box!.x + box!.width / 2;
 	const cy = box!.y + box!.height / 2;
 	await page.mouse.move(cx, cy);
 	await page.mouse.down();
 	await page.mouse.move(cx + 80, cy + 60, { steps: 5 });
 	await page.mouse.up();
-	const afterDrag = await viewBox();
-	expect(afterDrag).not.toBe(afterDblclick);
+	expect(await transform()).not.toBe(initial);
+	await page.locator('.zoom-tools button[title*="Reset zoom"]').click();
+
+	// A diagram larger than the canvas renders fitted (scale < 1).
+	const editor = page.locator('.source-editor .cm-content');
+	await editor.click();
+	await editor.press('ControlOrMeta+a');
+	const big = ['flowchart TD', ...Array.from({ length: 40 }, (_, i) => `  N${i} --> N${i + 1}`)].join('\n');
+	await editor.type(big);
+	await expect(page.locator('.canvas').first()).toBeVisible();
+	await page.waitForFunction(() => {
+		const style = document.querySelector('.canvas')?.getAttribute('style') ?? '';
+		return /scale\(0\.\d+\)/.test(style);
+	});
 });
 
 test('history saves, restores and keeps a timeline', async ({ page }) => {

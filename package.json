@@ -29,6 +29,7 @@
     "@codemirror/lint": "^6.9.7",
     "@lezer/highlight": "^1.2.5",
     "codemirror": "^6.0.2",
-    "pele": "^1.9.0"
+    "pele": "^1.9.0",
+    "svg2roughjs": "^3.2.3"
   }
 }

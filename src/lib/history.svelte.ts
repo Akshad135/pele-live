@@ -51,7 +51,7 @@ function uid() {
 }
 
 function sameState(a: AppState, b: AppState) {
-	return a.code === b.code && a.config === b.config;
+	return a.code === b.code && a.config === b.config && (a.css ?? '') === (b.css ?? '');
 }
 
 /** Newest-first; a duplicate of the newest entry is skipped instead of re-saved. */
@@ -68,7 +68,7 @@ autoEntries = read(AUTO_KEY);
 manualEntries = read(MANUAL_KEY);
 
 function snapshot(): AppState {
-	return { code: appState.code, config: appState.config };
+	return { code: appState.code, config: appState.config, css: appState.css };
 }
 
 export const history = {
@@ -177,7 +177,8 @@ export const history = {
 				name: typeof entry.name === 'string' ? entry.name : undefined,
 				state: {
 					code: entry.state.code,
-					config: typeof entry.state.config === 'string' ? entry.state.config : '{}'
+					config: typeof entry.state.config === 'string' ? entry.state.config : '{}',
+					css: typeof entry.state.css === 'string' ? entry.state.css : ''
 				},
 				time: entry.time,
 				type: entry.type

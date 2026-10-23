@@ -15,7 +15,10 @@ export function renderDiagram(code: string, config?: DiagramConfig): RenderOutco
 		return { ok: false, error: new PeleError('Nothing to render yet. Type some Mermaid text.') };
 	}
 	try {
-		const result = render(code, { config: config as never });
+		// `responsive: false`: the svg keeps its natural pixel size; the preview
+		// implements its own fit/zoom/pan, and pele's max-width inline style
+		// would fight that transform math.
+		const result = render(code, { config: config as never, responsive: false });
 		return {
 			ok: true,
 			svg: result.svg,

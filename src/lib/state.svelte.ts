@@ -4,6 +4,9 @@ import { deserializeState } from './serde';
 export interface AppState {
 	code: string;
 	config: string;
+	/** User CSS applied over the diagram preview, scoped to it. Optional so
+	 * older saved states and shared links without it type-check. */
+	css?: string;
 }
 
 const STORAGE_KEY = 'pele-live:v1';
@@ -12,7 +15,7 @@ const STORAGE_KEY = 'pele-live:v1';
 export let loadedFromHash = false;
 
 function load(): AppState {
-	const defaults = { code: DEFAULT_CODE, config: DEFAULT_CONFIG };
+	const defaults = { code: DEFAULT_CODE, config: DEFAULT_CONFIG, css: '' };
 	if (typeof localStorage === 'undefined') {
 		return defaults;
 	}
@@ -40,14 +43,15 @@ function load(): AppState {
 				const state = parsed as AppState;
 				return {
 					code: state.code,
-					config: typeof state.config === 'string' ? state.config : DEFAULT_CONFIG
+					config: typeof state.config === 'string' ? state.config : DEFAULT_CONFIG,
+					css: typeof state.css === 'string' ? state.css : ''
 				};
 			}
 		}
 	} catch {
 		// Corrupt or unavailable storage falls through to defaults.
 	}
-	return { code: DEFAULT_CODE, config: DEFAULT_CONFIG };
+	return defaults;
 }
 
 const state = $state<AppState>(load());
@@ -94,13 +98,21 @@ export const appState = {
 		state.config = value;
 		persist();
 	},
+	get css() {
+		return state.css ?? '';
+	},
+	set css(value: string) {
+		state.css = value;
+		persist();
+	},
 	/** Replace everything, e.g. when opening a sample or a shared link. */
 	load(next: AppState) {
 		state.code = next.code;
 		state.config = next.config ?? DEFAULT_CONFIG;
+		state.css = next.css ?? '';
 		persist();
 	},
 	reset() {
-		this.load({ code: DEFAULT_CODE, config: DEFAULT_CONFIG });
+		this.load({ code: DEFAULT_CODE, config: DEFAULT_CONFIG, css: '' });
 	}
 };

@@ -3,6 +3,9 @@ import { deflate, inflate } from 'pako';
 export interface SharedState {
 	code: string;
 	config: string;
+	/** Optional custom CSS; only serialized when non-empty so plain links
+	 * stay byte-identical to mermaid.live's format. */
+	css?: string;
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -27,7 +30,9 @@ function base64UrlToBytes(text: string): Uint8Array {
  * payload uses their `mermaid` key for the config, so links open in either tool.
  */
 export function serializeState(state: SharedState): string {
-	const json = JSON.stringify({ code: state.code, mermaid: state.config });
+	const json = JSON.stringify(
+		state.css ? { code: state.code, mermaid: state.config, css: state.css } : { code: state.code, mermaid: state.config }
+	);
 	const compressed = deflate(new TextEncoder().encode(json), { level: 9 });
 	return `pako:${bytesToBase64Url(compressed)}`;
 }
@@ -47,14 +52,15 @@ export function deserializeState(fragment: string): SharedState | null {
 		if (parsed === null || typeof parsed !== 'object' || typeof (parsed as SharedState).code !== 'string') {
 			return null;
 		}
-		const state = parsed as { code: string; mermaid?: unknown; config?: unknown };
+		const state = parsed as { code: string; mermaid?: unknown; config?: unknown; css?: unknown };
 		const config =
 			typeof state.mermaid === 'string'
 				? state.mermaid
 				: typeof state.config === 'string'
 					? state.config
 					: '{}';
-		return { code: state.code, config };
+		const css = typeof state.css === 'string' ? state.css : undefined;
+		return { code: state.code, config, css };
 	} catch {
 		return null;
 	}

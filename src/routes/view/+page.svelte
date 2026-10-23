@@ -28,7 +28,9 @@
 
 	// Back into the editor with the same diagram loaded.
 	const editorHref =
-		shared && !parsed.error ? `/#${serializeState({ code: shared.code, config: shared.config })}` : '/';
+		shared && !parsed.error
+			? `/#${serializeState({ code: shared.code, config: shared.config, css: shared.css })}`
+			: '/';
 </script>
 
 <svelte:head>
@@ -36,7 +38,7 @@
 </svelte:head>
 
 <div class="stage">
-	<DiagramView {outcome} />
+	<DiagramView {outcome} css={shared?.css ?? ''} />
 	<a class="back" href={editorHref}>Open in editor</a>
 </div>
 
