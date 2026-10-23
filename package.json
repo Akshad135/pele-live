@@ -1,0 +1,30 @@
+{
+  "name": "pele-live",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A clean Mermaid playground powered by the Pele renderer. Local-first, no accounts, no tracking.",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "^3.0.10",
+    "@sveltejs/kit": "^2.63.1",
+    "@sveltejs/vite-plugin-svelte": "^7.1.4",
+    "@types/pako": "^2.0.4",
+    "pako": "^2.1.0",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.3.4",
+    "typescript": "^5.9.0",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.11"
+  },
+  "dependencies": {
+    "codemirror": "^6.0.2",
+    "pele": "^1.9.0"
+  }
+}
