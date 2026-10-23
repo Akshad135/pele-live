@@ -260,7 +260,7 @@
 	$effect(() => {
 		if (!pngOpen) return;
 		const close = (event: Event) => {
-			if (!(event.target instanceof Element)) return;
+			if (!(event.target instanceof Element) || !event.target.isConnected) return;
 			if (event.target.closest('.png-popover, .png-toggle')) return;
 			pngOpen = false;
 		};

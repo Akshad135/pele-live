@@ -1,15 +1,28 @@
-export type ThemeChoice = 'system' | 'light' | 'dark';
+export type ThemeChoice = 'auto' | 'day' | 'paper' | 'midnight' | 'matte';
 
 const KEY = 'pele-live:theme';
-const ORDER: ThemeChoice[] = ['system', 'light', 'dark'];
+
+export const THEMES: { id: ThemeChoice; label: string; scheme: 'light' | 'dark' }[] = [
+	{ id: 'auto', label: 'System', scheme: 'light' },
+	{ id: 'day', label: 'Day', scheme: 'light' },
+	{ id: 'paper', label: 'Paper', scheme: 'light' },
+	{ id: 'midnight', label: 'Midnight', scheme: 'dark' },
+	{ id: 'matte', label: 'Matte', scheme: 'dark' }
+];
+
+/** Legacy values from before theme variants existed. */
+function normalize(raw: string | null): ThemeChoice {
+	if (raw === 'light') return 'day';
+	if (raw === 'dark') return 'matte';
+	return THEMES.some((t) => t.id === raw) ? (raw as ThemeChoice) : 'auto';
+}
 
 function load(): ThemeChoice {
-	if (typeof localStorage === 'undefined') return 'system';
+	if (typeof localStorage === 'undefined') return 'auto';
 	try {
-		const raw = localStorage.getItem(KEY);
-		return raw === 'light' || raw === 'dark' ? raw : 'system';
+		return normalize(localStorage.getItem(KEY));
 	} catch {
-		return 'system';
+		return 'auto';
 	}
 }
 
@@ -17,7 +30,8 @@ let theme = $state<ThemeChoice>(load());
 
 function apply() {
 	if (typeof document === 'undefined') return;
-	if (theme === 'system') {
+	// 'auto' means no attribute: the prefers-color-scheme media queries decide.
+	if (theme === 'auto') {
 		delete document.documentElement.dataset.theme;
 	} else {
 		document.documentElement.dataset.theme = theme;
@@ -29,12 +43,12 @@ export const themeState = {
 		return theme;
 	},
 	get label(): string {
-		return theme === 'system' ? 'Auto' : theme === 'light' ? 'Light' : 'Dark';
+		return THEMES.find((t) => t.id === theme)?.label ?? 'System';
 	},
-	cycle() {
-		theme = ORDER[(ORDER.indexOf(theme) + 1) % ORDER.length];
+	set(choice: ThemeChoice) {
+		theme = choice;
 		try {
-			localStorage.setItem(KEY, theme);
+			localStorage.setItem(KEY, choice);
 		} catch {
 			// The toggle still works for this session if saving fails.
 		}

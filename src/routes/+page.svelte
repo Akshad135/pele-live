@@ -2,6 +2,7 @@
 	import DiagramView from '$lib/components/DiagramView.svelte';
 	import HistoryPanel from '$lib/components/HistoryPanel.svelte';
 	import SourceEditor from '$lib/components/SourceEditor.svelte';
+	import ThemeMenu from '$lib/components/ThemeMenu.svelte';
 	import { appState, loadedFromHash } from '$lib/state.svelte';
 	import { history as diagramHistory } from '$lib/history.svelte';
 	import { importDiagramFile } from '$lib/importDiagram';
@@ -10,7 +11,6 @@
 	import { serializeState } from '$lib/serde';
 	import { SAMPLES } from '$lib/samples';
 	import { onMount } from 'svelte';
-	import { themeState } from '$lib/theme.svelte';
 
 	// Split position as a fraction of the playground width, persisted.
 	const SPLIT_KEY = 'pele-live:split';
@@ -145,8 +145,6 @@
 	let editorTab = $state<'diagram' | 'config' | 'css'>('diagram');
 	// The theme label is rendered after hydration: the prerendered page cannot
 	// know the saved choice, and a differing label would be a hydration mismatch.
-	let mounted = $state(false);
-	onMount(() => (mounted = true));
 
 	// Minute-by-minute timeline snapshots for the history panel.
 	onMount(() => diagramHistory.startAutoSave());
@@ -156,6 +154,9 @@
 		if (!historyOpen) return;
 		const close = (event: Event) => {
 			if (!(event.target instanceof Element)) return;
+			// A re-render can detach the clicked element mid-dispatch (e.g. a
+			// row action that removes its row); that click is not "outside".
+			if (!event.target.isConnected) return;
 			// The toggle is excluded: its click opens the panel, and this document
 			// listener is added during that same click's dispatch.
 			if (event.target.closest('.history-menu, .history-toggle')) return;
@@ -183,9 +184,8 @@
 	$effect(() => {
 		if (!samplesOpen) return;
 		const close = (event: Event) => {
-			if (!(event.target instanceof Element) || !event.target.closest('.menu')) {
-				samplesOpen = false;
-			}
+			if (!(event.target instanceof Element) || !event.target.isConnected) return;
+			if (!event.target.closest('.menu')) samplesOpen = false;
 		};
 		const keyClose = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') samplesOpen = false;
@@ -271,13 +271,7 @@
 				hidden
 				onchange={(e) => importFiles(e.currentTarget.files)}
 			/>
-			<button
-				class="action"
-				onclick={() => themeState.cycle()}
-				title="Cycle theme (Auto → Light → Dark)"
-			>
-				{mounted ? themeState.label : ''}
-			</button>
+			<ThemeMenu />
 		<button class="action primary" onclick={share}>{copied ? 'Link copied' : 'Share'}</button>
 	</div>
 	{#if historyOpen}

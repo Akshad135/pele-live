@@ -57,8 +57,9 @@ test('history saves, restores and keeps a timeline', async ({ page }) => {
 	await editor.type('pie title Z\n  "a" : 1');
 	await expect(page.locator('.badge')).toHaveText('pie');
 
-	// Bookmark it.
+	// Bookmark it (the panel opens on the Projects tab).
 	await page.getByRole('button', { name: 'History' }).click();
+	await page.getByRole('tab', { name: /Saved/ }).click();
 	await page.getByRole('button', { name: 'Save version' }).click();
 
 	// The timeline already holds this session's snapshot.
@@ -76,6 +77,49 @@ test('history saves, restores and keeps a timeline', async ({ page }) => {
 	await page.locator('.row-actions button[title="Restore this version"]').first().click();
 	await expect(page.locator('.source-editor .cm-content')).toContainText('pie title Z');
 	await expect(page.locator('.badge')).toHaveText('pie');
+});
+
+test('projects save under a name, open back, and get deleted', async ({ page }) => {
+	const editor = page.locator('.source-editor .cm-content');
+	await editor.click();
+	await editor.press('ControlOrMeta+a');
+	await editor.type('pie title Ship\n  "a": 2');
+	await expect(page.locator('.badge')).toHaveText('pie');
+
+	await page.getByRole('button', { name: 'History' }).click();
+	await page.getByRole('button', { name: 'Save project' }).click();
+	// The new project goes straight into rename mode; give it a name.
+	const rename = page.locator('.rename');
+	await rename.fill('Release plan');
+	await rename.press('Enter');
+	await expect(page.locator('.panel .name')).toContainText('Release plan');
+
+	// Load a different diagram, then open the project back. Clicking the
+	// editor closed the panel, so it is opened again.
+	await editor.click();
+	await editor.press('ControlOrMeta+a');
+	await editor.type('flowchart TD\n  S --> T');
+	await expect(page.locator('.badge')).toHaveText('flowchart');
+	await page.getByRole('button', { name: 'History' }).click();
+	await page.locator('.row-actions button[title="Open this project"]').first().click();
+	await expect(page.locator('.source-editor .cm-content')).toContainText('pie title Ship');
+	await expect(page.locator('.badge')).toHaveText('pie');
+
+	await page.locator('.row-actions button[title="Delete"]').first().click();
+	await expect(page.locator('.panel .note')).toBeVisible();
+});
+
+test('theme menu switches between five themes', async ({ page }) => {
+	await page.locator('.theme-toggle').click();
+	await page.getByRole('option', { name: 'Midnight' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight');
+	await page.locator('.theme-toggle').click();
+	await page.getByRole('option', { name: 'Paper' }).click();
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'paper');
+	// System removes the attribute so the media queries decide.
+	await page.locator('.theme-toggle').click();
+	await page.getByRole('option', { name: 'System' }).click();
+	await expect(page.locator('html')).not.toHaveAttribute('data-theme');
 });
 
 test('share link round-trips through the URL hash', async ({ page }) => {

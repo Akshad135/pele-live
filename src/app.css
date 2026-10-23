@@ -82,6 +82,88 @@
 	--pele-series-8: #f472b6;
 }
 
+/* Calm cool light: white surface, slate text, teal accent. No cream. */
+:root[data-theme='paper'] {
+	--bg: #eef1f4;
+	--surface: #ffffff;
+	--fg: #1c2530;
+	--muted: #64748b;
+	--border: #dde3ea;
+	--border-strong: #cbd5e1;
+	--accent: #0f766e;
+	--accent-soft: rgba(15, 118, 110, 0.09);
+	--accent-fg: #ffffff;
+	--error-bg: #fef2f2;
+	--error-fg: #b91c1c;
+	--error-border: #fecaca;
+	--grid-dot: #d3dae2;
+	--syntax-keyword: #0e7490;
+	--syntax-string: #047857;
+	--syntax-comment: #94a3b8;
+	--syntax-meta: #7c3aed;
+	--syntax-operator: #64748b;
+
+	/* Diagram tokens (pele). */
+	--pele-bg: #ffffff;
+	--pele-fg: #1c2530;
+	--pele-muted: #64748b;
+	--pele-line: #334155;
+	--pele-surface: #f1f5f9;
+	--pele-surface-alt: #e2e8f0;
+	--pele-border: #cbd5e1;
+	--pele-accent: #0f766e;
+	--pele-critical: #dc2626;
+	--pele-series-1: #dc2626;
+	--pele-series-2: #ea580c;
+	--pele-series-3: #ca8a04;
+	--pele-series-4: #16a34a;
+	--pele-series-5: #0f766e;
+	--pele-series-6: #2563eb;
+	--pele-series-7: #7c3aed;
+	--pele-series-8: #db2777;
+}
+
+/* Deep blue night: indigo accents, low contrast. */
+:root[data-theme='midnight'] {
+	--bg: #0b1120;
+	--surface: #111a2e;
+	--fg: #dce4f2;
+	--muted: #8494ad;
+	--border: #1c2942;
+	--border-strong: #2a3a5c;
+	--accent: #7aa2f7;
+	--accent-soft: rgba(122, 162, 247, 0.12);
+	--accent-fg: #0b1120;
+	--error-bg: #2a1622;
+	--error-fg: #f7768e;
+	--error-border: #572437;
+	--grid-dot: #1b2a4a;
+	--syntax-keyword: #7aa2f7;
+	--syntax-string: #9ece6a;
+	--syntax-comment: #565f89;
+	--syntax-meta: #bb9af7;
+	--syntax-operator: #89ddff;
+
+	/* Diagram tokens (pele). */
+	--pele-bg: #111a2e;
+	--pele-fg: #dce4f2;
+	--pele-muted: #8494ad;
+	--pele-line: #9fb0d8;
+	--pele-surface: #18233c;
+	--pele-surface-alt: #202d49;
+	--pele-border: #2e3f63;
+	--pele-accent: #7aa2f7;
+	--pele-critical: #f7768e;
+	--pele-series-1: #f7768e;
+	--pele-series-2: #ff9e64;
+	--pele-series-3: #e0af68;
+	--pele-series-4: #9ece6a;
+	--pele-series-5: #73daca;
+	--pele-series-6: #7aa2f7;
+	--pele-series-7: #bb9af7;
+	--pele-series-8: #7dcfff;
+}
+
 /* Follow the system unless the user picked a theme explicitly. */
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme]) {
