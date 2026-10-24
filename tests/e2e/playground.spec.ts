@@ -245,7 +245,7 @@ test('importing a .mmd file loads it into the editor', async ({ page }) => {
 	await expect(page.locator('.badge')).toHaveText('pie');
 });
 
-test('popout opens the diagram in its own tab and back closes it', async ({ page }) => {
+test('popout opens the diagram in its own tab and back turns it into the editor', async ({ page }) => {
 	await page.waitForTimeout(400); // hydration, so the popout carries current state
 	const popupPromise = page.context().waitForEvent('page');
 	await page.locator('.side-tools button[title*="own tab"]').click();
@@ -254,11 +254,12 @@ test('popout opens the diagram in its own tab and back closes it', async ({ page
 	await expect(popup.locator('.badge')).toHaveText('flowchart');
 	await expect(popup.getByRole('link', { name: 'Back to editor' })).toBeVisible();
 
-	// The popout tab was script-opened, so going back closes it (the editor
-	// tab stays put). A closed-opener fallback navigates in place instead.
-	const closedPromise = popup.waitForEvent('close');
+	// Back to editor navigates the popout tab into a full editor carrying the
+	// same diagram (never window.close(): the tab may be user-opened, e.g.
+	// from a link on another site).
 	await popup.getByRole('link', { name: 'Back to editor' }).click();
-	await closedPromise;
+	await expect(popup.locator('.source-editor .cm-content')).toBeVisible();
+	await expect(popup).not.toHaveURL(/\/view/);
 });
 
 test('fullscreen button requests fullscreen on the preview', async ({ page }) => {

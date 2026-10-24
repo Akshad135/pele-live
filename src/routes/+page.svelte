@@ -165,10 +165,10 @@
 			config: appState.config,
 			css: appState.css
 		})}`;
-		// A blocked popup returns null — nothing visibly happens. Navigating
-		// in place keeps the escape hatch: the view page's "Back to editor"
-		// brings the diagram back into the editor.
-		if (!window.open(url, '_blank', 'noopener')) window.location.href = url;
+		// No blocked-popup fallback: with 'noopener', window.open returns null
+		// even when it succeeds, so the return value cannot be trusted. A
+		// browser-blocked popup shows its own blocked-popup indicator.
+		window.open(url, '_blank', 'noopener');
 	}
 
 	function openSample(name: string) {

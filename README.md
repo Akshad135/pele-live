@@ -4,6 +4,8 @@ A clean Mermaid playground powered by [Pele](https://github.com/obsidianmd/pele)
 No accounts, no subscription — diagrams render locally in your browser and the
 diagram data never leaves it (page views are counted by Vercel Analytics).
 
+**Live at [pele-live.vercel.app](https://pele-live.vercel.app/)**
+
 ## Features
 
 - **Fast local rendering** — pele renders synchronously with zero dependencies;
