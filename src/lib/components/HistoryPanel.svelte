@@ -28,6 +28,7 @@
 	}
 
 	function startRename(entry: { id: string; name?: string }) {
+		cancelledRename = false;
 		editingId = entry.id;
 		editName = entry.name ?? '';
 	}

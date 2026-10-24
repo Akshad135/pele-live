@@ -195,7 +195,22 @@ test('PNG export offers size modes and downloads with state', async ({ page }) =
 	expect(download.suggestedFilename()).toBe('diagram-with-editor-state.png');
 });
 
+test('hand-drawn mode shows exactly one sketch across re-renders and themes', async ({ page }) => {
+	await page.waitForSelector('.diagram svg');
+	await page.locator('button[title="Hand-drawn look"]').click();
+	await expect(page.locator('.sketch-host svg')).toHaveCount(1);
+	const ed = page.locator('.source-editor .cm-content');
+	await ed.click();
+	await ed.press('ControlOrMeta+a');
+	await ed.type('sequenceDiagram\n  A->>B: fresh sketch');
+	await expect(page.locator('.sketch-host svg')).toHaveCount(1);
+	await page.locator('.theme-toggle').click();
+	await page.getByRole('option', { name: 'Midnight' }).click();
+	await expect(page.locator('.sketch-host svg')).toHaveCount(1);
+});
+
 test('importing a .mmd file loads it into the editor', async ({ page }) => {
+	await page.waitForTimeout(400); // hydration: the file input's change listener must exist
 	await page.setInputFiles('input[type=file]', {
 		name: 'plan.mmd',
 		mimeType: 'text/plain',

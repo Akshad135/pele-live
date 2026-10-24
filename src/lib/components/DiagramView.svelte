@@ -247,6 +247,10 @@
 			void (async () => {
 				const { Svg2Roughjs } = await import('svg2roughjs');
 				if (cancelled) return;
+				// svg2roughjs only replaces its own instance's previous result;
+				// a fresh instance would stack a second svg next to the old
+				// sketch. Clear the host so exactly one sketch is ever shown.
+				host.replaceChildren();
 				const sketcher = new Svg2Roughjs(host);
 				sketcher.fontFamily = getComputedStyle(document.body).fontFamily;
 				sketcher.svg = source;
@@ -329,7 +333,7 @@
 		};
 	});
 
-	// Move focus into the dialog when it opens, restore to the toggle on close.
+	// Move focus into the dialog when it opens.
 	$effect(() => {
 		if (exportOpen) exportDialog?.focus();
 	});

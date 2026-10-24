@@ -27,15 +27,49 @@ export interface PngOptions {
 	value: number;
 }
 
+function skipQuoted(css: string, start: number): number {
+	const quote = css[start];
+	for (let i = start + 1; i < css.length; i++) {
+		if (css[i] === '\\') i++;
+		else if (css[i] === quote) return i + 1;
+	}
+	return css.length;
+}
+
+function skipBlockComment(css: string, start: number): number {
+	const close = css.indexOf('*/', start + 2);
+	return close === -1 ? css.length : close + 2;
+}
+
 /**
  * Rewrite the editor's preview CSS (scoped to `.diagram-frame` there) so the
  * same rules apply inside an exported SVG: drop the preview-only prefixes,
  * then scope the rest to the svg root the way scopeCss scopes to the frame.
+ * The prefix strip is selector-aware: text inside strings and comments is
+ * copied through untouched, and a compound like `.diagram-frame:not(.x)`
+ * loses only the `.diagram-frame` part.
  */
-function svgScopedCss(raw: string): string {
-	const stripped = raw
-		.replace(/\.diagram-frame\s+svg\s+/g, '')
-		.replace(/\.diagram-frame\s+/g, '')
+export function svgScopedCss(raw: string): string {
+	let copied = '';
+	let i = 0;
+	while (i < raw.length) {
+		const ch = raw[i];
+		if (ch === '"' || ch === "'") {
+			const end = skipQuoted(raw, i);
+			copied += raw.slice(i, end);
+			i = end;
+		} else if (ch === '/' && raw[i + 1] === '*') {
+			const end = skipBlockComment(raw, i);
+			copied += raw.slice(i, end);
+			i = end;
+		} else {
+			copied += ch;
+			i++;
+		}
+	}
+	const stripped = copied
+		.replace(/(^|[\s,{])\.diagram-frame\s+svg\s+/g, '$1')
+		.replace(/(^|[\s,{])\.diagram-frame(?![\w-])/g, '$1')
 		.trim();
 	if (!stripped) return '';
 	return scopeCss(stripped, 'svg');
