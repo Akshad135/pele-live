@@ -215,7 +215,16 @@
 
 	// --- Hand-drawn (rough) mode ---------------------------------------------
 	const ROUGH_KEY = 'pele-live:rough';
-	let roughOn = $state(typeof localStorage !== 'undefined' && localStorage.getItem(ROUGH_KEY) === 'on');
+	// localStorage access itself can throw (e.g. "Block all cookies"); reads
+	// are guarded exactly like the writes below.
+	function storedFlag(key: string): string | null {
+		try {
+			return localStorage.getItem(key);
+		} catch {
+			return null;
+		}
+	}
+	let roughOn = $state(typeof localStorage !== 'undefined' && storedFlag(ROUGH_KEY) === 'on');
 	// Hidden holder for the pristine pele svg that svg2roughjs consumes.
 	let roughSource = $state<HTMLDivElement | undefined>();
 	// Where the sketch output lands while rough mode is on.
@@ -478,9 +487,7 @@
 
 	// Grid toggle, persisted like the original editor's.
 	const GRID_KEY = 'pele-live:grid';
-	let grid = $state(
-		typeof localStorage === 'undefined' || localStorage.getItem(GRID_KEY) !== 'off'
-	);
+	let grid = $state(typeof localStorage === 'undefined' || storedFlag(GRID_KEY) !== 'off');
 
 	function toggleGrid() {
 		grid = !grid;

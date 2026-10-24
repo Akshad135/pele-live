@@ -1,4 +1,4 @@
-import { appState, type AppState } from './state.svelte';
+import { appState, onBeforeReplace, type AppState } from './state.svelte';
 import { serializeState } from './serde';
 
 export interface HistoryEntry {
@@ -54,10 +54,14 @@ function sameState(a: AppState, b: AppState) {
 	return a.code === b.code && a.config === b.config && (a.css ?? '') === (b.css ?? '');
 }
 
-/** Newest-first; a duplicate of the newest entry is skipped instead of re-saved. */
+/** Newest-first; a duplicate of the newest entry is skipped instead of re-saved.
+ * Sorted by time so imported entries (which carry their own timestamps) can't
+ * land above newer ones. */
 function push(entries: HistoryEntry[], entry: HistoryEntry, max: number) {
 	if (entries[0] && sameState(entries[0].state, entry.state)) return entries;
-	return [entry, ...entries.filter((e) => e.id !== entry.id)].slice(0, max);
+	const next = [entry, ...entries.filter((e) => e.id !== entry.id)];
+	next.sort((a, b) => b.time - a.time);
+	return next.slice(0, max);
 }
 
 let autoEntries = $state<HistoryEntry[]>([]);
@@ -69,6 +73,27 @@ manualEntries = read(MANUAL_KEY);
 
 function snapshot(): AppState {
 	return { code: appState.code, config: appState.config, css: appState.css };
+}
+
+// Whenever something replaces the editor (opening a project or sample,
+// restoring a version, importing a file), capture what it replaced so the
+// swap is never a silent, unrecoverable loss.
+onBeforeReplace((replaced) => {
+	autoEntries = push(
+		autoEntries,
+		{ id: uid(), state: replaced, time: Date.now(), type: 'auto' },
+		MAX_AUTO
+	);
+	write(AUTO_KEY, autoEntries);
+});
+
+// Another tab saved: refresh so this tab's next write can't clobber newer
+// storage with a stale in-memory list.
+if (typeof window !== 'undefined') {
+	window.addEventListener('storage', (e) => {
+		if (e.key === AUTO_KEY || e.key === null) autoEntries = read(AUTO_KEY);
+		if (e.key === MANUAL_KEY || e.key === null) manualEntries = read(MANUAL_KEY);
+	});
 }
 
 export const history = {

@@ -65,6 +65,14 @@ function persist(list: Project[]) {
 
 let projects = $state<Project[]>(read());
 
+// Another tab saved: refresh so this tab's next write can't clobber newer
+// storage with a stale in-memory list.
+if (typeof window !== 'undefined') {
+	window.addEventListener('storage', (e) => {
+		if (e.key === KEY || e.key === null) projects = read();
+	});
+}
+
 export const projectStore = {
 	get list() {
 		return projects;

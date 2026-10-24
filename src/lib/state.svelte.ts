@@ -56,6 +56,14 @@ function load(): AppState {
 
 const state = $state<AppState>(load());
 
+/** Notified with the state about to be replaced, so it can be preserved
+ * (the history timeline captures it). Registered by history.svelte.ts. */
+let beforeReplace: ((replaced: AppState) => void) | undefined;
+
+export function onBeforeReplace(fn: (replaced: AppState) => void) {
+	beforeReplace = fn;
+}
+
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
 function persist(immediate = false) {
@@ -69,6 +77,7 @@ function persist(immediate = false) {
 }
 
 function write() {
+	saveTimer = undefined;
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 	} catch {
@@ -107,9 +116,16 @@ export const appState = {
 	},
 	/** Replace everything, e.g. when opening a sample or a shared link. */
 	load(next: AppState) {
+		const config = next.config ?? DEFAULT_CONFIG;
+		const css = next.css ?? '';
+		// Loading what is already loaded changes nothing and loses nothing.
+		if (state.code === next.code && state.config === config && state.css === css) return;
+		// Hand the replaced state to the timeline first, or it would be
+		// unrecoverable until the next periodic snapshot.
+		beforeReplace?.({ code: state.code, config: state.config, css: state.css });
 		state.code = next.code;
-		state.config = next.config ?? DEFAULT_CONFIG;
-		state.css = next.css ?? '';
+		state.config = config;
+		state.css = css;
 		persist();
 	},
 	reset() {

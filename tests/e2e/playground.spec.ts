@@ -267,3 +267,22 @@ test('fullscreen button requests fullscreen on the preview', async ({ page }) =>
 	await page.locator('.side-tools button[title="Fullscreen"]').click();
 	await page.waitForFunction(() => document.fullscreenElement === null);
 });
+
+test('boots when localStorage access is blocked entirely', async ({ browser }) => {
+	// Chrome's "Block all cookies" makes every localStorage access throw.
+	// A dedicated browser is needed because the flag is a launch arg.
+	const blocked = await browser.browserType().launch({ args: ['--disable-local-storage'] });
+	try {
+		const page = await blocked.newPage();
+		await page.goto('http://localhost:4173/');
+		await expect(page.locator('.diagram svg').first()).toBeVisible();
+		await expect(page.locator('.badge')).toHaveText('flowchart');
+		// The toggles must survive their unsavable reads too: grid reads as
+		// its default (on) when storage is blocked, so the button hides it.
+		await page.locator('.side-tools button[title="Hide grid"]').click();
+		await expect(page.locator('.side-tools button[title="Show grid"]')).toBeVisible();
+	} finally {
+		await blocked.close();
+	}
+});
+

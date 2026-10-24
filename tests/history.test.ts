@@ -25,9 +25,11 @@ const { appState } = await import('$lib/state.svelte');
 describe('history', () => {
 	beforeEach(() => {
 		localStorage.clear();
+		// load() captures the replaced state into the timeline, so clear
+		// after it to start each test from a known empty history.
+		appState.load({ code: 'flowchart TD\n A --> B', config: '{}' });
 		history.clear('auto');
 		history.clear('manual');
-		appState.load({ code: 'flowchart TD\n A --> B', config: '{}' });
 	});
 
 	afterEach(() => {
@@ -95,6 +97,33 @@ describe('history', () => {
 		history.restore(history.manual[0].id);
 		expect(appState.code).toContain('X --> Y');
 		expect(appState.config).toBe('{"theme":"dark"}');
+	});
+
+	it('captures the replaced state whenever the editor is swapped', () => {
+		appState.code = 'flowchart TD\n typed 5s ago';
+		appState.load({ code: 'pie title project', config: '{}' });
+		expect(appState.code).toBe('pie title project');
+		expect(history.auto[0].state.code).toBe('flowchart TD\n typed 5s ago');
+
+		// A swap to the same state (restore of the current version) dedupes.
+		const count = history.auto.length;
+		appState.load({ code: 'pie title project', config: '{}' });
+		expect(history.auto).toHaveLength(count);
+	});
+
+	it('orders entries by their own timestamps, not insert order', () => {
+		history.save('newest');
+		const old = {
+			id: 'ancient',
+			name: 'Ancient bookmark',
+			state: { code: 'flowchart TD\n old', config: '{}' },
+			time: 1, // year 1970, imported from an export file
+			type: 'manual' as const
+		};
+		const result = history.import(JSON.stringify([old]));
+		expect(result.restored).toBe(1);
+		expect(history.manual[0].name).toBe('newest');
+		expect(history.manual[history.manual.length - 1].name).toBe('Ancient bookmark');
 	});
 
 	it('imports JSON files, skipping duplicates and invalid entries', () => {
