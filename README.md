@@ -37,9 +37,14 @@ bun run build   # static production build in build/
 
 `bun run build` writes a fully static site to `build/`. Host it anywhere that
 serves files — Netlify, Vercel, Cloudflare Pages, GitHub Pages, nginx. There is
-no backend. `vercel.json` enables Vercel's clean URLs so the shared-diagram
-route (`/view`) resolves; it lives in `static/` too, so a drag-and-drop of
-`build/` works as well.
+no backend. `vercel.json` pins the output directory and clean URLs (so the
+shared-diagram route `/view` resolves); it lives in `static/` too, so a
+drag-and-drop of `build/` works as well. A Vercel git import needs no manual
+settings — the file config overrides the dashboard preset.
+
+Page-view analytics use Vercel Web Analytics; enable it once in the Vercel
+dashboard (Project → Analytics). Without it the insights script 404s and
+nothing is counted.
 
 ## Credits
 

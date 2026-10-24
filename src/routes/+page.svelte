@@ -289,7 +289,7 @@
 	<title>Pele Live — Mermaid playground</title>
 	<meta
 		name="description"
-		content="A fast, private Mermaid playground. Diagrams render locally with Pele — no accounts, no tracking."
+		content="A fast, private Mermaid playground. Diagrams render locally with Pele — no accounts."
 	/>
 </svelte:head>
 

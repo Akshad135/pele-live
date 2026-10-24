@@ -4,6 +4,17 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/png" href="%sveltekit.assets%/pele-logo.png" />
+		<!-- Toolbar color follows the auto theme; a stored theme overrides the
+		     attribute (not this tag) — an accepted approximation. -->
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161616" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="pele.live" />
+		<meta property="og:title" content="Pele Live — Mermaid playground" />
+		<meta property="og:description" content="A fast, private Mermaid playground. Diagrams render locally with Pele — no accounts." />
+		<meta property="og:url" content="https://pele-live.vercel.app/" />
+		<meta property="og:image" content="https://pele-live.vercel.app/pele-logo-256.png" />
+		<meta name="twitter:card" content="summary" />
 		<script>
 			// Apply the saved theme before first paint to avoid a flash.
 			try {
