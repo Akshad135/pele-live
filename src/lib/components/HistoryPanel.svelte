@@ -59,9 +59,11 @@
 		importError =
 			result.restored === 0 && result.invalid === 0 && result.duplicates === 0
 				? 'No entries found in that file.'
-				: result.invalid > 0
-					? `Restored ${result.restored}, skipped ${result.duplicates} duplicates and ${result.invalid} invalid.`
-					: '';
+				: result.restored === 0 && result.duplicates > 0 && result.invalid === 0
+					? 'Everything in that file is already here.'
+					: result.invalid > 0
+						? `Restored ${result.restored}, skipped ${result.duplicates} duplicates and ${result.invalid} invalid.`
+						: '';
 		if (fileInput) fileInput.value = '';
 	}
 </script>

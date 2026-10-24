@@ -27,7 +27,7 @@ const DOCS_PAGES: Record<string, string> = {
 	architecture: 'architecture',
 	radar: 'radar',
 	treemap: 'treemap',
-	info: 'info'
+	swimlane: 'swimlanes'
 };
 
 export function docsUrl(mermaidType: string): string | null {

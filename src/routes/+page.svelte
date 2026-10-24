@@ -393,7 +393,7 @@
 		<div
 			class="divider"
 			role="separator"
-			aria-orientation="vertical"
+			aria-orientation={stacked ? 'horizontal' : 'vertical'}
 			aria-label="Resize panes"
 			onpointerdown={startDrag}
 		></div>
