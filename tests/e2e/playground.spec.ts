@@ -23,7 +23,7 @@ test('canvas fits, zooms, and pans with the cursor at any zoom', async ({ page }
 	await page.locator('.zoom-tools button[title="Zoom in"]').click();
 	const zoomed = await transform();
 	expect(zoomed).not.toBe(initial);
-	await page.locator('.zoom-tools button[title*="Reset zoom"]').click();
+	await page.locator('.zoom-tools button[title*="Fit diagram to view"]').click();
 	expect(await transform()).toBe(initial);
 
 	// Dragging pans at any zoom, fit included.
@@ -35,7 +35,7 @@ test('canvas fits, zooms, and pans with the cursor at any zoom', async ({ page }
 	await page.mouse.move(cx + 80, cy + 60, { steps: 5 });
 	await page.mouse.up();
 	expect(await transform()).not.toBe(initial);
-	await page.locator('.zoom-tools button[title*="Reset zoom"]').click();
+	await page.locator('.zoom-tools button[title*="Fit diagram to view"]').click();
 
 	// A diagram larger than the canvas renders fitted (scale < 1).
 	const editor = page.locator('.source-editor .cm-content');
@@ -105,7 +105,10 @@ test('projects save under a name, open back, and get deleted', async ({ page }) 
 	await expect(page.locator('.source-editor .cm-content')).toContainText('pie title Ship');
 	await expect(page.locator('.badge')).toHaveText('pie');
 
+	// Destructive buttons need two clicks: first arms ("Sure?"), second fires.
 	await page.locator('.row-actions button[title="Delete"]').first().click();
+	await expect(page.locator('.row-actions button.danger')).toBeVisible();
+	await page.locator('.row-actions button.danger').first().click();
 	await expect(page.locator('.panel .note')).toBeVisible();
 });
 

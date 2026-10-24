@@ -114,7 +114,8 @@ export const projectStore = {
 		a.href = url;
 		a.download = `pele-projects-${stamp}.json`;
 		a.click();
-		URL.revokeObjectURL(url);
+		// Give the download a moment to start before freeing the object URL.
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
 	},
 
 	import(text: string): { restored: number; duplicates: number; invalid: number } {

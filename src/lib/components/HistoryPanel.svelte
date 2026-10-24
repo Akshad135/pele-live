@@ -5,6 +5,7 @@
 	let tab = $state<'projects' | 'manual' | 'auto'>('projects');
 	let editingId = $state<string | undefined>();
 	let editName = $state('');
+	let cancelledRename = false;
 	let importError = $state('');
 	let fileInput = $state<HTMLInputElement | undefined>();
 
@@ -31,7 +32,18 @@
 		editName = entry.name ?? '';
 	}
 
+	function cancelRename() {
+		// Unmounting the input fires blur right after this; the flag tells
+		// commitRename to ignore that event instead of saving the edit anyway.
+		cancelledRename = true;
+		editingId = undefined;
+	}
+
 	function commitRename(entry: { id: string }) {
+		if (cancelledRename) {
+			cancelledRename = false;
+			return;
+		}
 		if (tab === 'projects') projectStore.rename(entry.id, editName);
 		else history.rename(entry.id, editName);
 		editingId = undefined;
@@ -49,6 +61,27 @@
 	async function exportList() {
 		if (tab === 'projects') projectStore.export();
 		else history.export(tab);
+	}
+
+	// Destructive buttons need a second click to fire; the first click arms
+	// them for a moment instead of popping a modal.
+	let armedId = $state<string | undefined>();
+	let armTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function armed(id: string): boolean {
+		return armedId === id;
+	}
+
+	function armOrRun(id: string, run: () => void) {
+		if (armedId === id) {
+			armedId = undefined;
+			clearTimeout(armTimer);
+			run();
+			return;
+		}
+		armedId = id;
+		clearTimeout(armTimer);
+		armTimer = setTimeout(() => (armedId = undefined), 2500);
 	}
 
 	async function importFile(files: FileList | undefined | null) {
@@ -128,7 +161,7 @@
 										// document handler that closes the whole panel.
 										e.stopPropagation();
 										if (e.key === 'Enter') commitRename(entry);
-										if (e.key === 'Escape') editingId = undefined;
+										if (e.key === 'Escape') cancelRename();
 									}}
 									onblur={() => commitRename(entry)}
 								/>
@@ -149,8 +182,16 @@
 							<button title="Restore this project" onclick={() => projectStore.open(entry.id)}>
 								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2-7.5L3 7" /></svg>
 							</button>
-							<button title="Delete" onclick={() => projectStore.remove(entry.id)}>
-								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+							<button
+								class:danger={armed(`project:${entry.id}`)}
+								title="Delete"
+								onclick={() => armOrRun(`project:${entry.id}`, () => projectStore.remove(entry.id))}
+							>
+								{#if armed(`project:${entry.id}`)}
+									Sure?
+								{:else}
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+								{/if}
 							</button>
 						</div>
 					</li>
@@ -179,7 +220,7 @@
 									onkeydown={(e) => {
 										e.stopPropagation();
 										if (e.key === 'Enter') commitRename(entry);
-										if (e.key === 'Escape') editingId = undefined;
+										if (e.key === 'Escape') cancelRename();
 									}}
 									onblur={() => commitRename(entry)}
 								/>
@@ -200,15 +241,31 @@
 							<button title="Restore this version" onclick={() => history.restore(entry.id)}>
 								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2-7.5L3 7" /></svg>
 							</button>
-							<button title="Delete" onclick={() => history.remove(entry.id)}>
-								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+							<button
+								class:danger={armed(`history:${entry.id}`)}
+								title="Delete"
+								onclick={() => armOrRun(`history:${entry.id}`, () => history.remove(entry.id))}
+							>
+								{#if armed(`history:${entry.id}`)}
+									Sure?
+								{:else}
+									<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m3 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>
+								{/if}
 							</button>
 						</div>
 					</li>
 				{/each}
 			</ul>
-			<button class="clear" onclick={() => history.clear(tab === 'manual' ? 'manual' : 'auto')}>
-				Clear {tab === 'manual' ? 'saved' : 'timeline'}
+			<button
+				class="clear"
+				class:danger={armed('clear')}
+				onclick={() => armOrRun('clear', () => history.clear(tab === 'manual' ? 'manual' : 'auto'))}
+			>
+				{#if armed('clear')}
+					Click again to clear
+				{:else}
+					Clear {tab === 'manual' ? 'saved' : 'timeline'}
+				{/if}
 			</button>
 		{/if}
 	{/if}
@@ -399,6 +456,14 @@
 	.row-actions a:hover {
 		background: var(--accent-soft);
 		color: var(--accent);
+	}
+
+	/* Armed destructive button: second click confirms. */
+	.row-actions button.danger,
+	.clear.danger {
+		background: var(--error-bg);
+		color: var(--error-fg);
+		font-weight: 600;
 	}
 
 	.note {

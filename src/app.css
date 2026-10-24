@@ -151,19 +151,19 @@
 	--pele-series-7: #7c3aed;
 	--pele-series-8: #db2777;
 
-	/* Node cycling palette: dusty muted pastels. */
-	--pele-node-1: #e8f1ee;
-	--pele-node-1-line: #3d7d6f;
-	--pele-node-2: #f6ecdf;
-	--pele-node-2-line: #b06a2c;
-	--pele-node-3: #e6eff4;
-	--pele-node-3-line: #41748a;
-	--pele-node-4: #eaeaf6;
-	--pele-node-4-line: #6267b5;
-	--pele-node-5: #f7eaef;
-	--pele-node-5-line: #a85577;
-	--pele-node-6: #eef2e2;
-	--pele-node-6-line: #6f8a37;
+	/* Node cycling palette: warm dusty stone tones (distinct from Day's cool pastels). */
+	--pele-node-1: #eef0e6;
+	--pele-node-1-line: #7a8449;
+	--pele-node-2: #f4ece2;
+	--pele-node-2-line: #b07a3a;
+	--pele-node-3: #ece7db;
+	--pele-node-3-line: #8a7f5c;
+	--pele-node-4: #efe6da;
+	--pele-node-4-line: #a8683f;
+	--pele-node-5: #f0e8e0;
+	--pele-node-5-line: #96604a;
+	--pele-node-6: #e9e9d8;
+	--pele-node-6-line: #6f7a35;
 }
 
 /* Deep blue night: indigo accents, low contrast. */

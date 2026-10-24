@@ -139,7 +139,8 @@ export const history = {
 		a.href = url;
 		a.download = `pele-history-${type}-${stamp}.json`;
 		a.click();
-		URL.revokeObjectURL(url);
+		// Give the download a moment to start before freeing the object URL.
+		setTimeout(() => URL.revokeObjectURL(url), 1000);
 	},
 
 	/** Merges an exported file back in; returns the counts shown to the user. */

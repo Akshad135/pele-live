@@ -39,10 +39,15 @@ export function colorizeNodes(nodes: Element[], palette: NodePalette[]): void {
 			byId.set(id, color);
 		}
 		// setAttribute, not .style: exported SVGs are parsed as XML, where
-		// elements have no style property. Re-runs merge over pele's own
-		// inline style instead of clobbering it.
-		const existing = node.getAttribute('style');
-		const base = existing ? `${existing.replace(/;\s*$/, '')};` : '';
-		node.setAttribute('style', `${base}--_s:${color.fill};--_b:${color.line}`);
+		// elements have no style property. Re-runs replace this function's own
+		// previous --_s/--_b declarations instead of appending duplicates.
+		const kept = (node.getAttribute('style') ?? '')
+			.replace(/--_s:[^;]*;?/g, '')
+			.replace(/--_b:[^;]*;?/g, '')
+			.replace(/;\s*$/, '');
+		node.setAttribute(
+			'style',
+			`${kept ? `${kept};` : ''}--_s:${color.fill};--_b:${color.line}`
+		);
 	}
 }

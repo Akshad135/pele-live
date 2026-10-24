@@ -199,6 +199,7 @@
 	$effect(() => {
 		void outcome; // recolor whenever the diagram is re-rendered
 		void themeState.current; // ...and whenever the theme (palette) changes
+		void themeState.systemDark; // ...including OS flips while on the auto theme
 		void roughOn; // ...and when the pristine rough-source copy appears
 		void mounted; // ...and when the canvas content first renders
 		const frameEl = frame;
@@ -232,6 +233,8 @@
 	$effect(() => {
 		void outcome; // re-sketch whenever the diagram is re-rendered
 		void mounted; // the pristine source only exists after mount
+		void themeState.current; // and whenever the theme (or its palette) changes
+		void themeState.systemDark; // ...including OS flips while on the auto theme
 		if (!roughOn) return;
 		const source = untrack(() => roughSource?.querySelector('svg'));
 		const host = untrack(() => sketchHost);
@@ -292,6 +295,7 @@
 
 	// The export popup with one row per format.
 	let exportOpen = $state(false);
+	let exportDialog = $state<HTMLDivElement | undefined>();
 	// Editor state embedded into exports so files can be re-imported here.
 	let embedOn = $state(true);
 	// PNG export sizing: auto (2x) or fit a chosen width/height.
@@ -325,6 +329,11 @@
 		};
 	});
 
+	// Move focus into the dialog when it opens, restore to the toggle on close.
+	$effect(() => {
+		if (exportOpen) exportDialog?.focus();
+	});
+
 	function currentSource(): Element | null {
 		return frame?.querySelector('svg') ?? null;
 	}
@@ -333,7 +342,7 @@
 		const source = currentSource();
 		if (!outcome.ok || !source) return;
 		try {
-			await copySvg(outcome.svg, source, exportState());
+			await copySvg(outcome.svg, source, exportState(), css);
 			flashCopied();
 		} catch {
 			exportError = 'Clipboard is unavailable here.';
@@ -343,13 +352,13 @@
 	function onDownloadSvg() {
 		const source = currentSource();
 		if (!outcome.ok || !source) return;
-		exportSvg(outcome.svg, source, exportState());
+		exportSvg(outcome.svg, source, exportState(), css);
 	}
 
 	function onDownloadHtml() {
 		const source = currentSource();
 		if (!outcome.ok || !source) return;
-		exportHtml(outcome.svg, source, exportState());
+		exportHtml(outcome.svg, source, exportState(), css);
 	}
 
 	async function onDownloadPng() {
@@ -357,7 +366,7 @@
 		if (!outcome.ok || !source) return;
 		exportError = '';
 		try {
-			await exportPng(outcome.svg, source, pngOptions(), exportState());
+			await exportPng(outcome.svg, source, pngOptions(), exportState(), css);
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'PNG export failed.';
 		}
@@ -368,7 +377,7 @@
 		if (!outcome.ok || !source) return;
 		exportError = '';
 		try {
-			await copyPng(outcome.svg, source, pngOptions(), exportState());
+			await copyPng(outcome.svg, source, pngOptions(), exportState(), css);
 			flashCopied();
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Could not copy the image.';
@@ -398,7 +407,7 @@
 				await frame?.requestFullscreen();
 			}
 		} catch {
-			// Fullscreen can be refused (permissions policy, iframe); the button just does nothing.
+			exportError = 'Fullscreen was blocked by the browser.';
 		}
 	}
 </script>
@@ -450,7 +459,7 @@
 			<button onclick={() => zoomBy(0.8)} title="Zoom out">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
 			</button>
-			<button onclick={zoomReset} title="Reset zoom">
+			<button onclick={zoomReset} title="Fit diagram to view">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6M3.5 13a9 9 0 1 0 2-7.5L3 7" /></svg>
 			</button>
 			<button onclick={() => zoomBy(1.25)} title="Zoom in">
@@ -460,9 +469,6 @@
 		<div class="side-tools">
 			<button class="export-toggle" onclick={() => (exportOpen = !exportOpen)} aria-expanded={exportOpen} title="Export the diagram">
 				Export
-			</button>
-			<button onclick={onCopySvg} title="Copy the diagram as SVG to the clipboard">
-				{copied ? 'Copied' : 'Copy SVG'}
 			</button>
 			<span class="side-sep" aria-hidden="true"></span>
 			{#if onpopout}
@@ -489,7 +495,7 @@
 			</button>
 		</div>
 		{#if exportOpen}
-			<div class="export-popover" role="dialog" aria-label="Export the diagram">
+			<div class="export-popover" role="dialog" aria-label="Export the diagram" tabindex="-1" bind:this={exportDialog}>
 				<header class="export-head">
 					<strong>Export</strong>
 					<button class="export-close" onclick={() => (exportOpen = false)} title="Close" aria-label="Close export dialog">
@@ -505,7 +511,7 @@
 				<div class="export-row">
 					<span class="export-format">SVG</span>
 					<button onclick={onDownloadSvg}>Download .svg</button>
-					<button onclick={onCopySvg}>{copied ? 'Copied' : 'Copy'}</button>
+					<button onclick={onCopySvg}>{copied ? 'Copied' : 'Copy SVG'}</button>
 				</div>
 				<div class="export-row">
 					<span class="export-format">PNG</span>
@@ -529,8 +535,10 @@
 							</label>
 						{/if}
 					</div>
-					<button onclick={onDownloadPng}>Download .png</button>
-					<button onclick={onCopyPng}>Copy image</button>
+					<div class="png-actions">
+						<button onclick={onDownloadPng}>Download .png</button>
+						<button onclick={onCopyPng}>Copy PNG</button>
+					</div>
 				</div>
 				{#if shared}
 					<div class="export-row">
@@ -873,6 +881,36 @@
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		padding: 3px 6px;
+	}
+
+	.png-actions {
+		grid-column: 2;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 6px;
+	}
+
+	.png-actions button {
+		border: 1px solid var(--border);
+		background: transparent;
+		color: var(--fg);
+		font-size: 12px;
+		font-weight: 500;
+		border-radius: 7px;
+		padding: 5px 10px;
+		cursor: pointer;
+		white-space: nowrap;
+		text-align: center;
+	}
+
+	.png-actions button:hover {
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.export-popover:focus {
+		outline: none;
 	}
 
 	.error-banner {

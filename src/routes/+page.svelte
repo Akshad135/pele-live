@@ -170,7 +170,7 @@
 			} else {
 				appState.load(result);
 				history.replaceState(null, '', window.location.pathname);
-				importError = result.warn ?? '';
+				importError = result.warn ?? `Imported ${file.name}`;
 			}
 		} catch {
 			importError = `Could not read ${file.name}.`;
@@ -287,7 +287,10 @@
 			<details class="menu" bind:open={samplesOpen}>
 				<summary class="action">Samples</summary>
 				<div class="menu-list">
-					{#each SAMPLES as sample (sample.name)}
+					{#each SAMPLES as sample, i (sample.name)}
+						{#if sample.name.startsWith('Styling') && !SAMPLES[i - 1]?.name.startsWith('Styling')}
+							<p class="menu-group">Styling</p>
+						{/if}
 						<button onclick={() => openSample(sample.name)}>{sample.name}</button>
 					{/each}
 				</div>
@@ -296,7 +299,7 @@
 				class="action history-toggle"
 				class:active={historyOpen}
 				onclick={() => (historyOpen = !historyOpen)}
-				title="Saved versions and a timeline of your work"
+				title="Projects, saved versions, and a timeline of your work"
 			>
 				History
 			</button>
@@ -544,6 +547,15 @@
 		cursor: pointer;
 	}
 
+	.menu-group {
+		margin: 4px 8px 0;
+		font-size: 11px;
+		font-weight: 600;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+
 	.menu-list button:hover {
 		background: var(--accent-soft);
 	}
@@ -662,6 +674,21 @@
 	@media (max-width: 860px) {
 		.tagline {
 			display: none;
+		}
+	}
+
+	/* Phones: wrap the header onto two rows instead of clipping the right side. */
+	@media (max-width: 640px) {
+		header {
+			flex-wrap: wrap;
+			height: auto;
+			min-height: 52px;
+			padding: 6px 10px;
+		}
+
+		.action {
+			padding: 5px 8px;
+			font-size: 12.5px;
 		}
 	}
 </style>

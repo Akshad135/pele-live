@@ -1,6 +1,7 @@
 import { htmlWithState, pngWithState, svgWithState } from './embed';
 import { colorizeNodes, paletteFromStyle } from './diagramColors';
 import { serializeState, type SharedState } from './serde';
+import { scopeCss } from './scopedCss';
 
 // pele CSS variables, resolved from the live page into exported files.
 const PELE_VARS = [
@@ -27,13 +28,29 @@ export interface PngOptions {
 }
 
 /**
+ * Rewrite the editor's preview CSS (scoped to `.diagram-frame` there) so the
+ * same rules apply inside an exported SVG: drop the preview-only prefixes,
+ * then scope the rest to the svg root the way scopeCss scopes to the frame.
+ */
+function svgScopedCss(raw: string): string {
+	const stripped = raw
+		.replace(/\.diagram-frame\s+svg\s+/g, '')
+		.replace(/\.diagram-frame\s+/g, '')
+		.trim();
+	if (!stripped) return '';
+	return scopeCss(stripped, 'svg');
+}
+
+/**
  * Inline the page's resolved theme variables on the SVG root, so an exported
  * file keeps the colors the user sees instead of falling back to pele's
  * defaults when opened outside the page. The editor's node cycling palette
  * lives in page CSS rules, so it is applied per node here with resolved
- * values — the same assignment the live preview does.
+ * values — the same assignment the live preview does. The user's custom CSS
+ * ships along inside a <style> element, so exported files look exactly like
+ * the preview.
  */
-export function withResolvedTheme(svg: string, source: Element): string {
+export function withResolvedTheme(svg: string, source: Element, css?: string): string {
 	const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml');
 	const root = parsed.documentElement;
 	if (root.nodeName === 'parsererror' || parsed.querySelector('parsererror')) return svg;
@@ -45,6 +62,12 @@ export function withResolvedTheme(svg: string, source: Element): string {
 	const palette = paletteFromStyle(computed);
 	if (palette.length) {
 		colorizeNodes([...root.querySelectorAll('.pele-nodes > .pele-node')], palette);
+	}
+	const scoped = css ? svgScopedCss(css) : '';
+	if (scoped) {
+		const style = parsed.createElementNS('http://www.w3.org/2000/svg', 'style');
+		style.textContent = scoped;
+		root.appendChild(style);
 	}
 	return new XMLSerializer().serializeToString(root);
 }
@@ -64,14 +87,14 @@ function naturalSize(resolved: string): { width: number; height: number } | null
 	return width > 0 && height > 0 ? { width, height } : null;
 }
 
-export function exportSvg(svg: string, source: Element, state?: SharedState) {
-	const resolved = withResolvedTheme(svg, source);
+export function exportSvg(svg: string, source: Element, state?: SharedState, css?: string) {
+	const resolved = withResolvedTheme(svg, source, css);
 	const withState = state ? svgWithState(resolved, serializeState(state)) : resolved;
 	download(new Blob([withState], { type: 'image/svg+xml;charset=utf-8' }), 'diagram.svg');
 }
 
-export function exportHtml(svg: string, source: Element, state?: SharedState) {
-	const resolved = withResolvedTheme(svg, source);
+export function exportHtml(svg: string, source: Element, state?: SharedState, css?: string) {
+	const resolved = withResolvedTheme(svg, source, css);
 	const title = `${state?.code.match(/^\S+/)?.[0] ?? 'Diagram'} — pele.live`;
 	const doc = htmlWithState(resolved, state ? serializeState(state) : null, title);
 	download(new Blob([doc], { type: 'text/html;charset=utf-8' }), 'diagram.html');
@@ -127,9 +150,10 @@ export async function exportPng(
 	svg: string,
 	source: Element,
 	options: PngOptions,
-	state?: SharedState
+	state?: SharedState,
+	css?: string
 ): Promise<void> {
-	const resolved = withResolvedTheme(svg, source);
+	const resolved = withResolvedTheme(svg, source, css);
 	const natural = naturalSize(resolved);
 	if (!natural) throw new Error('SVG has no intrinsic size.');
 	const blob = await rasterize(resolved, svgSizeFor(options, natural));
@@ -144,12 +168,13 @@ export async function copyPng(
 	svg: string,
 	source: Element,
 	options: PngOptions,
-	state?: SharedState
+	state?: SharedState,
+	css?: string
 ): Promise<void> {
 	if (typeof ClipboardItem === 'undefined') {
 		throw new Error('This browser cannot copy images.');
 	}
-	const resolved = withResolvedTheme(svg, source);
+	const resolved = withResolvedTheme(svg, source, css);
 	const natural = naturalSize(resolved);
 	if (!natural) throw new Error('SVG has no intrinsic size.');
 	const blob = await rasterize(resolved, svgSizeFor(options, natural));
@@ -161,8 +186,13 @@ export async function copyPng(
 	}
 }
 
-export async function copySvg(svg: string, source: Element, state?: SharedState): Promise<void> {
-	const resolved = withResolvedTheme(svg, source);
+export async function copySvg(
+	svg: string,
+	source: Element,
+	state?: SharedState,
+	css?: string
+): Promise<void> {
+	const resolved = withResolvedTheme(svg, source, css);
 	const withState = state ? svgWithState(resolved, serializeState(state)) : resolved;
 	await navigator.clipboard.writeText(withState);
 }

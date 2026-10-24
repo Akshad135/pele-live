@@ -38,9 +38,23 @@ function apply() {
 	}
 }
 
+// Tracks the OS scheme so effects that read computed colors can re-run when
+// the OS flips while the user is on the auto theme (no data-theme attribute).
+let systemDark = $state(
+	typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches
+);
+
+if (typeof matchMedia !== 'undefined') {
+	const query = matchMedia('(prefers-color-scheme: dark)');
+	query.addEventListener('change', (event) => (systemDark = event.matches));
+}
+
 export const themeState = {
 	get current(): ThemeChoice {
 		return theme;
+	},
+	get systemDark(): boolean {
+		return systemDark;
 	},
 	get label(): string {
 		return THEMES.find((t) => t.id === theme)?.label ?? 'System';
