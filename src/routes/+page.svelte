@@ -84,15 +84,17 @@
 
 	const parsedConfig = $derived(parseConfig(appState.config));
 
-	function renderNow(): RenderOutcome {
-		return parsedConfig.error
-			? { ok: false as const, error: new PeleError(`Invalid config JSON: ${parsedConfig.error}`) }
-			: renderDiagram(appState.code, parsedConfig.config);
+	function renderNow(code: string = appState.code, config = parsedConfig): RenderOutcome {
+		return config.error
+			? { ok: false as const, error: new PeleError(`Invalid config JSON: ${config.error}`) }
+			: renderDiagram(code, config.config);
 	}
 
 	// Adaptive sync: fast diagrams re-render on every keystroke; once a render
-	// has proven slow, switch to a debounce so typing stays responsive.
-	const FAST_RENDER_MS = 40;
+	// has proven slow, switch to a debounce so typing stays responsive. The
+	// threshold sits below the raw pele time because a keystroke costs the
+	// whole pipeline (render + DOM swap), roughly double the pele figure.
+	const FAST_RENDER_MS = 25;
 	const SLOW_DEBOUNCE_MS = 500;
 	let lastRenderMs = 0;
 	let outcome = $state<RenderOutcome>(renderNow());
@@ -111,15 +113,21 @@
 
 	$effect(() => {
 		void hmrTick;
+		// The inputs must be read here, synchronously: the debounced branch
+		// renders inside a timeout, where reads are untracked — an effect that
+		// only tracked hmrTick would never re-run, freezing the preview after
+		// the first slow render.
+		const code = appState.code;
+		const config = parsedConfig;
 		if (lastRenderMs < FAST_RENDER_MS) {
 			const started = performance.now();
-			outcome = renderNow();
+			outcome = renderNow(code, config);
 			lastRenderMs = performance.now() - started;
 			return;
 		}
 		const timer = setTimeout(() => {
 			const started = performance.now();
-			outcome = renderNow();
+			outcome = renderNow(code, config);
 			lastRenderMs = performance.now() - started;
 		}, SLOW_DEBOUNCE_MS);
 		return () => clearTimeout(timer);
