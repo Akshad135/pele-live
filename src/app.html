@@ -10,7 +10,10 @@
 				var t = localStorage.getItem('pele-live:theme');
 				if (t === 'light') t = 'day';
 				else if (t === 'dark') t = 'matte';
-				if (t && t !== 'auto') document.documentElement.dataset.theme = t;
+				// Only known themes may set the attribute; anything else falls
+				// through to 'auto' (media queries) via the missing attribute.
+				if (['day', 'paper', 'midnight', 'matte'].indexOf(t) < 0) t = null;
+				if (t) document.documentElement.dataset.theme = t;
 			} catch (e) {}
 		</script>
 		%sveltekit.head%

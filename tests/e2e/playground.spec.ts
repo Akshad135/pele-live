@@ -101,7 +101,7 @@ test('projects save under a name, open back, and get deleted', async ({ page }) 
 	await editor.type('flowchart TD\n  S --> T');
 	await expect(page.locator('.badge')).toHaveText('flowchart');
 	await page.getByRole('button', { name: 'History' }).click();
-	await page.locator('.row-actions button[title="Open this project"]').first().click();
+	await page.locator('.row-actions button[title="Restore this project"]').first().click();
 	await expect(page.locator('.source-editor .cm-content')).toContainText('pie title Ship');
 	await expect(page.locator('.badge')).toHaveText('pie');
 
@@ -113,9 +113,13 @@ test('theme menu switches between five themes', async ({ page }) => {
 	await page.locator('.theme-toggle').click();
 	await page.getByRole('option', { name: 'Midnight' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight');
+	// The attribute alone proves nothing if no CSS block matches it; assert paint.
+	const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 	await page.locator('.theme-toggle').click();
 	await page.getByRole('option', { name: 'Paper' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'paper');
+	const lightBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+	expect(darkBg).not.toBe(lightBg);
 	// System removes the attribute so the media queries decide.
 	await page.locator('.theme-toggle').click();
 	await page.getByRole('option', { name: 'System' }).click();

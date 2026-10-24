@@ -141,9 +141,10 @@ export const projectStore = {
 				invalid++;
 				continue;
 			}
+			const name = typeof entry.name === 'string' ? entry.name.toLowerCase() : '';
 			if (
-				projects.some((p) => p.id === entry.id || p.name.toLowerCase() === (entry.name ?? '').toLowerCase()) ||
-				incoming.some((p) => p.id === entry.id)
+				projects.some((p) => p.id === entry.id || p.name.toLowerCase() === name) ||
+				incoming.some((p) => p.id === entry.id || p.name.toLowerCase() === name)
 			) {
 				duplicates++;
 				continue;

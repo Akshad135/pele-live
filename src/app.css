@@ -42,7 +42,7 @@
 	--mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='matte'] {
 	--bg: #0a0a0a;
 	--surface: #161616;
 	--fg: #e7e7e7;
