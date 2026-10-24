@@ -425,6 +425,9 @@
 	}
 
 	.wordmark {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
 		font-weight: 650;
 		font-size: 15px;
 		color: var(--fg);

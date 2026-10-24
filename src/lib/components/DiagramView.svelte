@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, onMount } from 'svelte';
 	import type { RenderOutcome } from '$lib/render';
 	import {
 		copyPng,
@@ -26,6 +26,13 @@
 	}
 
 	let { outcome, css = '', shared, onpopout }: Props = $props();
+
+	// The canvas renders client-side only: a prerendered page cannot know the
+	// saved session, and {@html} hydration trusts the server DOM, so any
+	// server-rendered diagram would stick while the editor shows the restored
+	// code. Empty canvas until mount; every effect below re-runs on `mounted`.
+	let mounted = $state(false);
+	onMount(() => (mounted = true));
 
 	// --- Pan & zoom ----------------------------------------------------------
 	// Own implementation: pele's enableZoom cannot pan at fit and its clamping
@@ -157,6 +164,7 @@
 	$effect(() => {
 		void outcome;
 		void roughDone;
+		void mounted; // the svg only exists after mount
 		const size = svgSize();
 		const key = size ? `${size.w}x${size.h}` : '';
 		if (key && key !== laidOutSize) fit();
@@ -178,6 +186,7 @@
 		void outcome; // recolor whenever the diagram is re-rendered
 		void themeState.current; // ...and whenever the theme (palette) changes
 		void roughOn; // ...and when the pristine rough-source copy appears
+		void mounted; // ...and when the canvas content first renders
 		const frameEl = frame;
 		if (!frameEl) return;
 		const palette = paletteFromStyle(getComputedStyle(frameEl));
@@ -208,6 +217,7 @@
 
 	$effect(() => {
 		void outcome; // re-sketch whenever the diagram is re-rendered
+		void mounted; // the pristine source only exists after mount
 		if (!roughOn) return;
 		const source = untrack(() => roughSource?.querySelector('svg'));
 		const host = untrack(() => sketchHost);
@@ -396,20 +406,22 @@
 				bind:this={stage}
 				style={`transform: translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.scale})`}
 			>
+			{#if mounted}
 				{#if roughOn}
 					<div class="sketch-host" bind:this={sketchHost}></div>
 				{:else}
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
 					{@html outcome.svg}
 				{/if}
-			</div>
+			{/if}
 		</div>
-		{#if roughOn}
-			<div class="rough-source" aria-hidden="true" bind:this={roughSource}>
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
-				{@html outcome.svg}
-			</div>
-		{/if}
+	</div>
+	{#if mounted && roughOn}
+		<div class="rough-source" aria-hidden="true" bind:this={roughSource}>
+			<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
+			{@html outcome.svg}
+		</div>
+	{/if}
 		<span class="badge" title="Rendered diagram type">{outcome.diagramType}</span>
 		{#if outcome.ok && docsUrl(outcome.mermaidType)}
 			<a
