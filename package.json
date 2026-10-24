@@ -19,7 +19,6 @@
     "@sveltejs/vite-plugin-svelte": "^7.1.4",
     "@types/node": "^26.6.5",
     "@types/pako": "^2.0.4",
-    "pako": "^2.1.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.3.4",
     "typescript": "^5.9.0",
@@ -30,6 +29,7 @@
     "@codemirror/lint": "^6.9.7",
     "@lezer/highlight": "^1.2.5",
     "codemirror": "^6.0.2",
+    "pako": "^2.1.0",
     "pele": "^1.9.0",
     "svg2roughjs": "^3.2.3"
   }

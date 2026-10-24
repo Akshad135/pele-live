@@ -6,7 +6,7 @@
 	import { appState, loadedFromHash } from '$lib/state.svelte';
 	import { history as diagramHistory } from '$lib/history.svelte';
 	import { importDiagramFile } from '$lib/importDiagram';
-	import { parseConfig, renderDiagram } from '$lib/render';
+	import { parseConfig, renderDiagram, type RenderOutcome } from '$lib/render';
 	import { PeleError } from 'pele';
 	import { serializeState } from '$lib/serde';
 	import { SAMPLES } from '$lib/samples';
@@ -17,16 +17,19 @@
 	let split = $state(0.5);
 	let panes = $state<HTMLDivElement | undefined>();
 
-	function fractionFrom(clientX: number) {
+	function fractionFrom(clientX: number, clientY: number) {
 		if (!panes) return;
 		const rect = panes.getBoundingClientRect();
-		split = Math.min(0.8, Math.max(0.2, (clientX - rect.left) / rect.width));
+		split = Math.min(
+			0.8,
+			Math.max(0.2, stacked ? (clientY - rect.top) / rect.height : (clientX - rect.left) / rect.width)
+		);
 	}
 
 	function startDrag(event: PointerEvent) {
 		event.preventDefault();
 		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-		const move = (e: PointerEvent) => fractionFrom(e.clientX);
+		const move = (e: PointerEvent) => fractionFrom(e.clientX, e.clientY);
 		const up = () => {
 			window.removeEventListener('pointermove', move);
 			window.removeEventListener('pointerup', up);
@@ -51,12 +54,49 @@
 		}
 	}
 
-	const parsedConfig = $derived(parseConfig(appState.config));
-	const outcome = $derived(
-		parsedConfig.error
-			? { ok: false as const, error: new PeleError(`Invalid config JSON: ${parsedConfig.error}`) }
-			: renderDiagram(appState.code, parsedConfig.config)
+	// Narrow screens stack the panes vertically; the divider then splits rows.
+	const STACKED_QUERY = '(max-width: 860px)';
+	let stacked = $state(
+		typeof matchMedia !== 'undefined' ? matchMedia(STACKED_QUERY).matches : false
 	);
+
+	$effect(() => {
+		if (typeof matchMedia === 'undefined') return;
+		const query = matchMedia(STACKED_QUERY);
+		const apply = (event: MediaQueryListEvent) => (stacked = event.matches);
+		query.addEventListener('change', apply);
+		return () => query.removeEventListener('change', apply);
+	});
+
+	const parsedConfig = $derived(parseConfig(appState.config));
+
+	function renderNow(): RenderOutcome {
+		return parsedConfig.error
+			? { ok: false as const, error: new PeleError(`Invalid config JSON: ${parsedConfig.error}`) }
+			: renderDiagram(appState.code, parsedConfig.config);
+	}
+
+	// Adaptive sync: fast diagrams re-render on every keystroke; once a render
+	// has proven slow, switch to a debounce so typing stays responsive.
+	const FAST_RENDER_MS = 40;
+	const SLOW_DEBOUNCE_MS = 500;
+	let lastRenderMs = 0;
+	let outcome = $state<RenderOutcome>(renderNow());
+
+	$effect(() => {
+		if (lastRenderMs < FAST_RENDER_MS) {
+			const started = performance.now();
+			outcome = renderNow();
+			lastRenderMs = performance.now() - started;
+			return;
+		}
+		const timer = setTimeout(() => {
+			const started = performance.now();
+			outcome = renderNow();
+			lastRenderMs = performance.now() - started;
+		}, SLOW_DEBOUNCE_MS);
+		return () => clearTimeout(timer);
+	});
 
 	// The hash was already applied during state initialization (no first-paint flicker);
 	// drop it from the address bar so a reload restores the saved session instead.
@@ -282,7 +322,14 @@
 	</header>
 
 	<main>
-		<div class="panes" bind:this={panes} style={`grid-template-columns: ${split}fr 6px 1fr`}>
+		<div
+			class="panes"
+			class:stacked
+			bind:this={panes}
+			style={stacked
+				? `grid-template-rows: ${split}fr 6px ${1 - split}fr`
+				: `grid-template-columns: ${split}fr 6px ${1 - split}fr`}
+		>
 		<section class="pane" aria-label="Mermaid source">
 			<div class="editor-tabs">
 				<button
@@ -595,5 +642,15 @@
 
 	.divider:hover {
 		background: var(--accent);
+	}
+
+	.panes.stacked .divider {
+		cursor: row-resize;
+	}
+
+	@media (max-width: 860px) {
+		.tagline {
+			display: none;
+		}
 	}
 </style>

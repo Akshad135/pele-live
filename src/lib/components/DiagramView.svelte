@@ -11,6 +11,7 @@
 	} from '$lib/export';
 	import type { SharedState } from '$lib/serde';
 	import { scopeCss } from '$lib/scopedCss';
+	import { docsUrl } from '$lib/docs';
 
 	interface Props {
 		outcome: RenderOutcome;
@@ -392,6 +393,17 @@
 			</div>
 		{/if}
 		<span class="badge" title="Rendered diagram type">{outcome.diagramType}</span>
+		{#if outcome.ok && docsUrl(outcome.mermaidType)}
+			<a
+				class="docs-link"
+				href={docsUrl(outcome.mermaidType)}
+				target="_blank"
+				rel="noopener"
+				title="Syntax documentation for {outcome.diagramType}"
+			>
+				Docs ↗
+			</a>
+		{/if}
 		<div class="zoom-tools">
 			<button onclick={() => zoomBy(0.8)} title="Zoom out">
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
@@ -553,6 +565,26 @@
 		border: 1px solid var(--border);
 		border-radius: 999px;
 		padding: 2px 10px;
+	}
+
+	.docs-link {
+		position: absolute;
+		/* Under the type badge; the top-right corner belongs to the zoom tools. */
+		top: 46px;
+		left: 14px;
+		font-size: 11.5px;
+		font-weight: 500;
+		color: var(--muted);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		padding: 2px 10px;
+		text-decoration: none;
+	}
+
+	.docs-link:hover {
+		color: var(--accent);
+		border-color: var(--accent);
 	}
 
 	.zoom-tools,
