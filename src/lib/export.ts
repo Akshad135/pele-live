@@ -70,13 +70,10 @@ export function exportSvg(svg: string, source: Element, state?: SharedState) {
 	download(new Blob([withState], { type: 'image/svg+xml;charset=utf-8' }), 'diagram.svg');
 }
 
-export function exportHtml(svg: string, source: Element, state: SharedState) {
+export function exportHtml(svg: string, source: Element, state?: SharedState) {
 	const resolved = withResolvedTheme(svg, source);
-	const doc = htmlWithState(
-		resolved,
-		serializeState(state),
-		`${state.code.match(/^\S+/)?.[0] ?? 'Diagram'} — pele.live`
-	);
+	const title = `${state?.code.match(/^\S+/)?.[0] ?? 'Diagram'} — pele.live`;
+	const doc = htmlWithState(resolved, state ? serializeState(state) : null, title);
 	download(new Blob([doc], { type: 'text/html;charset=utf-8' }), 'diagram.html');
 }
 

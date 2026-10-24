@@ -280,7 +280,7 @@
 	<header>
 		<a class="wordmark" href="/">
 			<img class="mark" src="/pele-logo.png" alt="" width="20" height="20" />
-			pele<span>.live</span>
+			<span class="brand">pele<span class="tld">.live</span></span>
 		</a>
 		<span class="tagline">renders locally, nothing leaves your browser</span>
 		<div class="actions">
@@ -435,7 +435,7 @@
 		letter-spacing: -0.01em;
 	}
 
-	.wordmark span {
+	.wordmark .tld {
 		color: var(--muted);
 		font-weight: 450;
 	}

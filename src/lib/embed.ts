@@ -90,8 +90,8 @@ function escapeHtml(text: string): string {
 	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export function htmlWithState(svg: string, state: string, title: string): string {
-	const meta = `<meta name="pele-live-state" content="${state}">`;
+export function htmlWithState(svg: string, state: string | null, title: string): string {
+	const meta = state ? `<meta name="pele-live-state" content="${state}">` : '';
 	return [
 		'<!doctype html>',
 		'<html>',
@@ -106,7 +106,9 @@ export function htmlWithState(svg: string, state: string, title: string): string
 		'</head>',
 		`<body>${svg}</body>`,
 		'</html>'
-	].join('\n');
+	]
+		.filter(Boolean)
+		.join('\n');
 }
 
 export function stateFromHtml(html: string): string | null {

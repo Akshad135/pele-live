@@ -116,7 +116,7 @@
 	function startPan(event: PointerEvent) {
 		if (event.button !== 0 || !outcome.ok) return;
 		// The floating toolbars keep their own clicks.
-		if (event.target instanceof Element && event.target.closest('button, a, input, .toolbar, .side-tools, .zoom-tools')) {
+		if (event.target instanceof Element && event.target.closest('button, a, input, .side-tools, .zoom-tools, .export-popover')) {
 			return;
 		}
 		const startX = event.clientX;
@@ -158,6 +158,20 @@
 		if (!size || !rect || rect.width === 0) return 1;
 		return Math.min((rect.width - 56) / size.w, (rect.height - 56) / size.h, 1);
 	}
+
+	// --- Canvas content: single writer ---------------------------------------
+	// One effect owns both hosts' content and always replaces it wholesale, so
+	// a render can never leave a previous diagram behind — not across error
+	// transitions, not across hydration, not across anything.
+	let diagramHost = $state<HTMLDivElement | undefined>();
+
+	$effect(() => {
+		void outcome;
+		void mounted;
+		void roughOn;
+		if (diagramHost) diagramHost.innerHTML = outcome.ok ? outcome.svg : '';
+		if (roughSource) roughSource.innerHTML = outcome.ok ? outcome.svg : '';
+	});
 
 	// Fit whenever the rendered svg's natural size appears for the first time;
 	// same-size re-renders (typing) keep the current pan/zoom.
@@ -263,7 +277,7 @@
 		if (cssEl) cssEl.textContent = scopeCss(css, '.diagram-frame');
 	});
 
-	// --- Toolbar actions ------------------------------------------------------
+	// --- Export ----------------------------------------------------------------
 	let copied = $state(false);
 	let copyTimer: ReturnType<typeof setTimeout> | undefined;
 	let exportError = $state('');
@@ -276,8 +290,11 @@
 		copyTimer = setTimeout(() => (copied = false), 1600);
 	}
 
+	// The export popup with one row per format.
+	let exportOpen = $state(false);
+	// Editor state embedded into exports so files can be re-imported here.
+	let embedOn = $state(true);
 	// PNG export sizing: auto (2x) or fit a chosen width/height.
-	let pngOpen = $state(false);
 	let pngMode = $state<'auto' | 'width' | 'height'>('auto');
 	let pngValue = $state(1080);
 
@@ -285,16 +302,20 @@
 		return { mode: pngMode, value: Math.max(16, Math.min(16384, pngValue || 0)) };
 	}
 
-	// Close the PNG popover on Escape or a click outside of it.
+	function exportState(): SharedState | undefined {
+		return embedOn && shared ? shared : undefined;
+	}
+
+	// Close the export popup on Escape or a click outside of it.
 	$effect(() => {
-		if (!pngOpen) return;
+		if (!exportOpen) return;
 		const close = (event: Event) => {
 			if (!(event.target instanceof Element) || !event.target.isConnected) return;
-			if (event.target.closest('.png-popover, .png-toggle')) return;
-			pngOpen = false;
+			if (event.target.closest('.export-popover, .export-toggle')) return;
+			exportOpen = false;
 		};
 		const keyClose = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') pngOpen = false;
+			if (event.key === 'Escape') exportOpen = false;
 		};
 		document.addEventListener('click', close);
 		document.addEventListener('keydown', keyClose);
@@ -304,54 +325,51 @@
 		};
 	});
 
+	function currentSource(): Element | null {
+		return frame?.querySelector('svg') ?? null;
+	}
+
 	async function onCopySvg() {
-		if (!outcome.ok || !frame) return;
-		const source = frame.querySelector('svg');
-		if (!source) return;
+		const source = currentSource();
+		if (!outcome.ok || !source) return;
 		try {
-			await copySvg(outcome.svg, source, shared);
+			await copySvg(outcome.svg, source, exportState());
 			flashCopied();
 		} catch {
 			exportError = 'Clipboard is unavailable here.';
 		}
 	}
 
-	async function onDownloadSvg() {
-		if (!outcome.ok || !frame) return;
-		const source = frame.querySelector('svg');
-		if (!source) return;
-		exportSvg(outcome.svg, source, shared);
+	function onDownloadSvg() {
+		const source = currentSource();
+		if (!outcome.ok || !source) return;
+		exportSvg(outcome.svg, source, exportState());
 	}
 
-	async function onDownloadHtml() {
-		if (!outcome.ok || !frame || !shared) return;
-		const source = frame.querySelector('svg');
-		if (!source) return;
-		exportHtml(outcome.svg, source, shared);
+	function onDownloadHtml() {
+		const source = currentSource();
+		if (!outcome.ok || !source) return;
+		exportHtml(outcome.svg, source, exportState());
 	}
 
 	async function onDownloadPng() {
-		if (!outcome.ok) return;
-		const source = frame?.querySelector('svg');
-		if (!source) return;
+		const source = currentSource();
+		if (!outcome.ok || !source) return;
 		exportError = '';
 		try {
-			await exportPng(outcome.svg, source, pngOptions(), shared);
-			pngOpen = false;
+			await exportPng(outcome.svg, source, pngOptions(), exportState());
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'PNG export failed.';
 		}
 	}
 
 	async function onCopyPng() {
-		if (!outcome.ok) return;
-		const source = frame?.querySelector('svg');
-		if (!source) return;
+		const source = currentSource();
+		if (!outcome.ok || !source) return;
 		exportError = '';
 		try {
-			await copyPng(outcome.svg, source, pngOptions(), shared);
+			await copyPng(outcome.svg, source, pngOptions(), exportState());
 			flashCopied();
-			pngOpen = false;
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Could not copy the image.';
 		}
@@ -406,21 +424,15 @@
 				bind:this={stage}
 				style={`transform: translate(-50%, -50%) translate(${view.x}px, ${view.y}px) scale(${view.scale})`}
 			>
-			{#if mounted}
-				{#if roughOn}
-					<div class="sketch-host" bind:this={sketchHost}></div>
-				{:else}
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
-					{@html outcome.svg}
-				{/if}
+			{#if mounted && roughOn}
+				<div class="sketch-host" bind:this={sketchHost}></div>
+			{:else}
+				<div class="diagram-host" bind:this={diagramHost}></div>
 			{/if}
 		</div>
 	</div>
 	{#if mounted && roughOn}
-		<div class="rough-source" aria-hidden="true" bind:this={roughSource}>
-			<!-- eslint-disable-next-line svelte/no-at-html-tags -- Pele sanitizes its own SVG output -->
-			{@html outcome.svg}
-		</div>
+		<div class="rough-source" aria-hidden="true" bind:this={roughSource}></div>
 	{/if}
 		<span class="badge" title="Rendered diagram type">{outcome.diagramType}</span>
 		{#if outcome.ok && docsUrl(outcome.mermaidType)}
@@ -445,51 +457,14 @@
 				<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
 			</button>
 		</div>
-		<div class="toolbar">
-			<button onclick={onCopySvg}>{copied ? 'Copied' : 'Copy SVG'}</button>
-			<button onclick={onDownloadSvg}>SVG</button>
-			<button class="png-toggle" onclick={() => (pngOpen = !pngOpen)} aria-expanded={pngOpen}>
-				PNG
-			</button>
-			{#if shared}
-				<button onclick={onDownloadHtml}>HTML</button>
-			{/if}
-		</div>
-		{#if pngOpen}
-			<div class="png-popover" role="group" aria-label="PNG export options">
-				<div class="png-modes">
-					{#each ['auto', 'width', 'height'] as mode (mode)}
-						<button
-							aria-pressed={pngMode === mode}
-							class:active={pngMode === mode}
-							onclick={() => (pngMode = mode as 'auto' | 'width' | 'height')}
-						>
-							{mode}
-						</button>
-					{/each}
-				</div>
-				{#if pngMode !== 'auto'}
-					<label class="png-size">
-						{pngMode === 'width' ? 'Width' : 'Height'}
-						<input type="number" min="16" max="16384" bind:value={pngValue} />
-						px
-					</label>
-				{/if}
-				<div class="png-actions">
-					<button class="primary" onclick={onDownloadPng}>Download PNG</button>
-					<button onclick={onCopyPng}>Copy image</button>
-				</div>
-				<p class="png-hint">
-					{#if pngMode === 'auto'}
-						Twice the diagram's natural size.
-					{:else}
-						The other axis follows the diagram's aspect ratio.
-					{/if}
-					Files carry the editor state, so they can be re-imported.
-				</p>
-			</div>
-		{/if}
 		<div class="side-tools">
+			<button class="export-toggle" onclick={() => (exportOpen = !exportOpen)} aria-expanded={exportOpen} title="Export the diagram">
+				Export
+			</button>
+			<button onclick={onCopySvg} title="Copy the diagram as SVG to the clipboard">
+				{copied ? 'Copied' : 'Copy SVG'}
+			</button>
+			<span class="side-sep" aria-hidden="true"></span>
 			{#if onpopout}
 				<button onclick={onpopout} title="Open the diagram in its own tab">
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -513,7 +488,62 @@
 				</svg>
 			</button>
 		</div>
-		{#if exportError}
+		{#if exportOpen}
+			<div class="export-popover" role="dialog" aria-label="Export the diagram">
+				<header class="export-head">
+					<strong>Export</strong>
+					<button class="export-close" onclick={() => (exportOpen = false)} title="Close" aria-label="Close export dialog">
+						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
+					</button>
+				</header>
+				{#if shared}
+					<label class="export-embed">
+						<input type="checkbox" bind:checked={embedOn} />
+						Embed editor state — files can be re-imported here
+					</label>
+				{/if}
+				<div class="export-row">
+					<span class="export-format">SVG</span>
+					<button onclick={onDownloadSvg}>Download .svg</button>
+					<button onclick={onCopySvg}>{copied ? 'Copied' : 'Copy'}</button>
+				</div>
+				<div class="export-row">
+					<span class="export-format">PNG</span>
+					<div class="export-png">
+						<div class="png-modes">
+							{#each ['auto', 'width', 'height'] as mode (mode)}
+								<button
+									aria-pressed={pngMode === mode}
+									class:active={pngMode === mode}
+									onclick={() => (pngMode = mode as 'auto' | 'width' | 'height')}
+								>
+									{mode}
+								</button>
+							{/each}
+						</div>
+						{#if pngMode !== 'auto'}
+							<label class="png-size">
+								{pngMode === 'width' ? 'Width' : 'Height'}
+								<input type="number" min="16" max="16384" bind:value={pngValue} />
+								px
+							</label>
+						{/if}
+					</div>
+					<button onclick={onDownloadPng}>Download .png</button>
+					<button onclick={onCopyPng}>Copy image</button>
+				</div>
+				{#if shared}
+					<div class="export-row">
+						<span class="export-format">HTML</span>
+						<button onclick={onDownloadHtml}>Download .html</button>
+					</div>
+				{/if}
+				{#if exportError}
+					<p class="export-error" role="alert">{exportError}</p>
+				{/if}
+			</div>
+		{/if}
+		{#if !exportOpen && exportError}
 			<p class="export-error" role="alert">{exportError}</p>
 		{/if}
 	{:else}
@@ -617,8 +647,7 @@
 		border-color: var(--accent);
 	}
 
-	.zoom-tools,
-	.toolbar {
+	.zoom-tools {
 		position: absolute;
 		display: flex;
 		gap: 2px;
@@ -629,19 +658,10 @@
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
-	}
-
-	.zoom-tools {
 		top: 14px;
 		right: 14px;
 	}
 
-	.toolbar {
-		bottom: 14px;
-		left: 14px;
-	}
-
-	.toolbar button,
 	.zoom-tools button,
 	.side-tools button {
 		border: 0;
@@ -654,9 +674,9 @@
 		cursor: pointer;
 		display: grid;
 		place-items: center;
+		white-space: nowrap;
 	}
 
-	.toolbar button:hover,
 	.zoom-tools button:hover,
 	.side-tools button:hover {
 		background: var(--accent-soft);
@@ -673,6 +693,7 @@
 		bottom: 14px;
 		right: 14px;
 		display: flex;
+		align-items: center;
 		gap: 2px;
 		padding: 3px;
 		background: color-mix(in srgb, var(--surface) 72%, transparent);
@@ -683,6 +704,13 @@
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
 	}
 
+	.side-sep {
+		width: 1px;
+		height: 16px;
+		background: var(--border-strong);
+		margin: 0 3px;
+	}
+
 	.diagram-frame:fullscreen {
 		border-radius: 0;
 	}
@@ -690,7 +718,7 @@
 	.export-error {
 		position: absolute;
 		bottom: 44px;
-		left: 12px;
+		right: 14px;
 		margin: 0;
 		font-size: 12px;
 		color: var(--error-fg);
@@ -698,20 +726,107 @@
 		border: 1px solid var(--error-border);
 		border-radius: 6px;
 		padding: 4px 10px;
+		z-index: 11;
 	}
 
-	.png-popover {
+	/* Centered export dialog over the canvas. */
+	.export-popover {
 		position: absolute;
-		bottom: 44px;
-		left: 12px;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
 		display: grid;
-		gap: 8px;
-		padding: 10px;
+		gap: 10px;
+		width: min(400px, calc(100% - 32px));
+		padding: 14px;
 		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: 12px;
+		box-shadow:
+			0 4px 12px rgb(0 0 0 / 0.1),
+			0 24px 64px rgb(0 0 0 / 0.24);
+		z-index: 12;
+	}
+
+	.export-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: 13.5px;
+	}
+
+	.export-close {
+		border: 0;
+		background: transparent;
+		color: var(--muted);
+		border-radius: 6px;
+		padding: 4px;
+		cursor: pointer;
+		display: grid;
+		place-items: center;
+	}
+
+	.export-close:hover {
+		background: var(--accent-soft);
+		color: var(--accent);
+	}
+
+	.export-embed {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 12.5px;
+		color: var(--muted);
+		cursor: pointer;
+	}
+
+	.export-embed input {
+		accent-color: var(--accent);
+	}
+
+	.export-row {
+		display: grid;
+		grid-template-columns: 44px 1fr 1fr;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.export-row:has(.export-png) {
+		grid-template-columns: 44px 1fr;
+	}
+
+	.export-format {
+		font-size: 12px;
+		font-weight: 600;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+
+	.export-row > button {
 		border: 1px solid var(--border);
-		border-radius: 10px;
-		box-shadow: 0 12px 40px rgb(0 0 0 / 0.16);
-		z-index: 10;
+		background: transparent;
+		color: var(--fg);
+		font-size: 12px;
+		font-weight: 500;
+		border-radius: 7px;
+		padding: 5px 10px;
+		cursor: pointer;
+		white-space: nowrap;
+		text-align: center;
+	}
+
+	.export-row > button:hover {
+		background: var(--accent-soft);
+		color: var(--accent);
+		border-color: var(--accent);
+	}
+
+	.export-png {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		grid-column: 2;
 	}
 
 	.png-modes {
@@ -758,38 +873,6 @@
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		padding: 3px 6px;
-	}
-
-	.png-actions {
-		display: flex;
-		gap: 4px;
-	}
-
-	.png-actions button {
-		flex: 1;
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--fg);
-		font-size: 12px;
-		font-weight: 500;
-		border-radius: 7px;
-		padding: 5px 10px;
-		cursor: pointer;
-		white-space: nowrap;
-	}
-
-	.png-actions button:hover {
-		background: var(--accent-soft);
-		color: var(--accent);
-		border-color: var(--accent);
-	}
-
-	.png-hint {
-		margin: 0;
-		max-width: 240px;
-		font-size: 11.5px;
-		line-height: 1.45;
-		color: var(--muted);
 	}
 
 	.error-banner {

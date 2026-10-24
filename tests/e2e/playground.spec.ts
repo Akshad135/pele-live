@@ -148,9 +148,11 @@ test('samples load into the editor', async ({ page }) => {
 	await expect(page.locator('.badge')).toHaveText('sequence');
 });
 
-test('export produces an SVG download with resolved theme', async ({ page, context }) => {
+test('export popup produces an SVG download with resolved theme', async ({ page }) => {
+	await page.locator('.export-toggle').click();
+	await expect(page.locator('.export-popover')).toBeVisible();
 	const downloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'SVG', exact: true }).click();
+	await page.locator('.export-popover').getByRole('button', { name: 'Download .svg' }).click();
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toBe('diagram.svg');
 	// Exports embed the editor state so they can be imported back.
@@ -159,9 +161,20 @@ test('export produces an SVG download with resolved theme', async ({ page, conte
 	expect(await svg).toContain('pele-live-state');
 });
 
-test('HTML export downloads a standalone page', async ({ page }) => {
+test('export popup can skip embedding the editor state', async ({ page }) => {
+	await page.locator('.export-toggle').click();
+	await page.locator('.export-embed input').uncheck();
 	const downloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'HTML', exact: true }).click();
+	await page.locator('.export-popover').getByRole('button', { name: 'Download .svg' }).click();
+	const download = await downloadPromise;
+	const svg = await (await import('node:fs/promises')).readFile(await download.path(), 'utf8');
+	expect(svg).not.toContain('pele-live-state');
+});
+
+test('HTML export downloads a standalone page', async ({ page }) => {
+	await page.locator('.export-toggle').click();
+	const downloadPromise = page.waitForEvent('download');
+	await page.locator('.export-popover').getByRole('button', { name: 'Download .html' }).click();
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toBe('diagram.html');
 	expect(await (await import('node:fs/promises')).readFile(await download.path(), 'utf8')).toContain(
@@ -169,13 +182,12 @@ test('HTML export downloads a standalone page', async ({ page }) => {
 	);
 });
 
-test('PNG popover offers size modes and downloads with state', async ({ page }) => {
-	await page.locator('.toolbar .png-toggle').click();
-	await expect(page.locator('.png-popover')).toBeVisible();
+test('PNG export offers size modes and downloads with state', async ({ page }) => {
+	await page.locator('.export-toggle').click();
 	await page.locator('.png-modes button', { hasText: 'width' }).click();
 	await page.locator('.png-size input').fill('800');
 	const downloadPromise = page.waitForEvent('download');
-	await page.getByRole('button', { name: 'Download PNG' }).click();
+	await page.locator('.export-popover').getByRole('button', { name: 'Download .png' }).click();
 	const download = await downloadPromise;
 	expect(download.suggestedFilename()).toBe('diagram-with-editor-state.png');
 });

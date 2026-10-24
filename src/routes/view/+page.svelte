@@ -55,7 +55,7 @@
 </svelte:head>
 
 <div class="stage">
-	<DiagramView {outcome} css={shared?.css ?? ''} />
+	<DiagramView {outcome} css={shared?.css ?? ''} shared={shared ?? undefined} />
 	<a class="back" href={editorHref} onclick={backToEditor}>Back to editor</a>
 </div>
 
