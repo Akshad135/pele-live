@@ -1,4 +1,5 @@
 import { htmlWithState, pngWithState, svgWithState } from './embed';
+import { colorizeNodes, paletteFromStyle } from './diagramColors';
 import { serializeState, type SharedState } from './serde';
 
 // pele CSS variables, resolved from the live page into exported files.
@@ -28,7 +29,9 @@ export interface PngOptions {
 /**
  * Inline the page's resolved theme variables on the SVG root, so an exported
  * file keeps the colors the user sees instead of falling back to pele's
- * defaults when opened outside the page.
+ * defaults when opened outside the page. The editor's node cycling palette
+ * lives in page CSS rules, so it is applied per node here with resolved
+ * values — the same assignment the live preview does.
  */
 export function withResolvedTheme(svg: string, source: Element): string {
 	const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml');
@@ -38,6 +41,10 @@ export function withResolvedTheme(svg: string, source: Element): string {
 	for (const name of PELE_VARS) {
 		const value = computed.getPropertyValue(name).trim();
 		if (value) root.style.setProperty(name, value);
+	}
+	const palette = paletteFromStyle(computed);
+	if (palette.length) {
+		colorizeNodes([...root.querySelectorAll('.pele-nodes > .pele-node')], palette);
 	}
 	return new XMLSerializer().serializeToString(root);
 }

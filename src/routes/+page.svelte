@@ -266,17 +266,7 @@
 	{/if}
 	<header>
 		<a class="wordmark" href="/">
-			<svg class="mark" width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
-				<rect width="32" height="32" rx="7" fill="var(--fg)" />
-				<path
-					d="M8 11h7a4 4 0 0 1 4 4v1M8 21h7a4 4 0 0 0 4-4v-1"
-					fill="none"
-					stroke="var(--surface)"
-					stroke-width="2.5"
-					stroke-linecap="round"
-				/>
-				<circle cx="22.5" cy="16" r="2.5" fill="var(--accent)" />
-			</svg>
+			<img class="mark" src="/pele-logo.png" alt="" width="20" height="20" />
 			pele<span>.live</span>
 		</a>
 		<span class="tagline">renders locally, nothing leaves your browser</span>
@@ -432,6 +422,11 @@
 	.wordmark span {
 		color: var(--muted);
 		font-weight: 450;
+	}
+
+	.mark {
+		display: block;
+		border-radius: 5px;
 	}
 
 	.tagline {

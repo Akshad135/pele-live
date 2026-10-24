@@ -37,6 +37,20 @@
 	--pele-series-7: #7c3aed;
 	--pele-series-8: #db2777;
 
+	/* Node cycling palette: calm pastels, mermaid-live-style. */
+	--pele-node-1: #e7f6f3;
+	--pele-node-1-line: #0f9d8f;
+	--pele-node-2: #fdf0e5;
+	--pele-node-2-line: #e07f26;
+	--pele-node-3: #e7f4fb;
+	--pele-node-3-line: #2394c7;
+	--pele-node-4: #edeffd;
+	--pele-node-4-line: #5c6fd4;
+	--pele-node-5: #fdeff3;
+	--pele-node-5-line: #d5558c;
+	--pele-node-6: #f2f7e6;
+	--pele-node-6-line: #79a322;
+
 	--radius: 10px;
 	--font: 'Inter', -apple-system, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', sans-serif;
 	--mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
@@ -80,6 +94,20 @@
 	--pele-series-6: #5b9bf8;
 	--pele-series-7: #a78bfa;
 	--pele-series-8: #f472b6;
+
+	/* Node cycling palette: deep fills, light borders. */
+	--pele-node-1: #1e2630;
+	--pele-node-1-line: #6b9ff2;
+	--pele-node-2: #2d251d;
+	--pele-node-2-line: #de9440;
+	--pele-node-3: #1b2b2d;
+	--pele-node-3-line: #52b8c4;
+	--pele-node-4: #252234;
+	--pele-node-4-line: #9d92f5;
+	--pele-node-5: #2e2027;
+	--pele-node-5-line: #d97fa6;
+	--pele-node-6: #232b1d;
+	--pele-node-6-line: #a3bd5c;
 }
 
 /* Calm cool light: white surface, slate text, teal accent. No cream. */
@@ -121,6 +149,20 @@
 	--pele-series-6: #2563eb;
 	--pele-series-7: #7c3aed;
 	--pele-series-8: #db2777;
+
+	/* Node cycling palette: dusty muted pastels. */
+	--pele-node-1: #e8f1ee;
+	--pele-node-1-line: #3d7d6f;
+	--pele-node-2: #f6ecdf;
+	--pele-node-2-line: #b06a2c;
+	--pele-node-3: #e6eff4;
+	--pele-node-3-line: #41748a;
+	--pele-node-4: #eaeaf6;
+	--pele-node-4-line: #6267b5;
+	--pele-node-5: #f7eaef;
+	--pele-node-5-line: #a85577;
+	--pele-node-6: #eef2e2;
+	--pele-node-6-line: #6f8a37;
 }
 
 /* Deep blue night: indigo accents, low contrast. */
@@ -162,6 +204,20 @@
 	--pele-series-6: #7aa2f7;
 	--pele-series-7: #bb9af7;
 	--pele-series-8: #7dcfff;
+
+	/* Node cycling palette: tokyo-night fills, neon borders. */
+	--pele-node-1: #172433;
+	--pele-node-1-line: #6ea5ef;
+	--pele-node-2: #2b2130;
+	--pele-node-2-line: #cf8ef0;
+	--pele-node-3: #142f38;
+	--pele-node-3-line: #3fc6f0;
+	--pele-node-4: #32281d;
+	--pele-node-4-line: #f0a35e;
+	--pele-node-5: #2a1a2e;
+	--pele-node-5-line: #ef7fb2;
+	--pele-node-6: #1d2a16;
+	--pele-node-6-line: #a8cf5a;
 }
 
 /* Follow the system unless the user picked a theme explicitly. */
@@ -203,8 +259,29 @@
 		--pele-series-6: #5b9bf8;
 		--pele-series-7: #a78bfa;
 		--pele-series-8: #f472b6;
+
+		--pele-node-1: #1e2630;
+		--pele-node-1-line: #6b9ff2;
+		--pele-node-2: #2d251d;
+		--pele-node-2-line: #de9440;
+		--pele-node-3: #1b2b2d;
+		--pele-node-3-line: #52b8c4;
+		--pele-node-4: #252234;
+		--pele-node-4-line: #9d92f5;
+		--pele-node-5: #2e2027;
+		--pele-node-5-line: #d97fa6;
+		--pele-node-6: #232b1d;
+		--pele-node-6-line: #a3bd5c;
 	}
 }
+
+/*
+ * Editor-default diagram coloring: the --pele-node-N palettes above cycle
+ * across the diagram's nodes, mermaid-live-style. Applied in JS over pele's
+ * internal --_s/--_b node variables (diagramColors.ts), matched by data-id
+ * so a sequence participant's two copies share one color. Exports get the
+ * same resolved colors (export.ts); user CSS from the CSS tab overrides.
+ */
 
 * {
 	box-sizing: border-box;

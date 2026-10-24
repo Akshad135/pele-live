@@ -12,6 +12,8 @@
 	import type { SharedState } from '$lib/serde';
 	import { scopeCss } from '$lib/scopedCss';
 	import { docsUrl } from '$lib/docs';
+	import { colorizeNodes, paletteFromStyle } from '$lib/diagramColors';
+	import { themeState } from '$lib/theme.svelte';
 
 	interface Props {
 		outcome: RenderOutcome;
@@ -166,6 +168,22 @@
 		const observer = new ResizeObserver(() => fit());
 		observer.observe(frame);
 		return () => observer.disconnect();
+	});
+
+	// --- Editor-default node colors -------------------------------------------
+	// Cycle the theme's pastel palette across the diagram's nodes, matched by
+	// data-id so a sequence participant's top and bottom copies share a color.
+	// Runs before the rough effect so a sketch picks the colors up.
+	$effect(() => {
+		void outcome; // recolor whenever the diagram is re-rendered
+		void themeState.current; // ...and whenever the theme (palette) changes
+		void roughOn; // ...and when the pristine rough-source copy appears
+		const frameEl = frame;
+		if (!frameEl) return;
+		const palette = paletteFromStyle(getComputedStyle(frameEl));
+		// Every pele svg in the frame: the displayed one and the pristine
+		// offscreen copy the hand-drawn sketch is built from.
+		colorizeNodes(untrack(() => [...frameEl.querySelectorAll('.pele-nodes > .pele-node')]), palette);
 	});
 
 	// --- Hand-drawn (rough) mode ---------------------------------------------

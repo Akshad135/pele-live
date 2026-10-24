@@ -31,6 +31,23 @@
 		shared && !parsed.error
 			? `/#${serializeState({ code: shared.code, config: shared.config, css: shared.css })}`
 			: '/';
+
+	function backToEditor(event: MouseEvent) {
+		// This tab is normally a script-opened popout: close it and put focus
+		// back on the editor tab it came from. window.close() only works for
+		// script-opened tabs, so if it survives (opener gone, link opened
+		// directly), fall back to turning this tab into the editor.
+		try {
+			(window.opener as Window | null)?.focus();
+		} catch {
+			// The opener may be cross-origin or gone; focusing is a nicety.
+		}
+		window.close();
+		if (!window.closed) {
+			event.preventDefault();
+			window.location.href = editorHref;
+		}
+	}
 </script>
 
 <svelte:head>
@@ -39,7 +56,7 @@
 
 <div class="stage">
 	<DiagramView {outcome} css={shared?.css ?? ''} />
-	<a class="back" href={editorHref}>Open in editor</a>
+	<a class="back" href={editorHref} onclick={backToEditor}>Back to editor</a>
 </div>
 
 <style>
