@@ -268,6 +268,46 @@ test('fullscreen button requests fullscreen on the preview', async ({ page }) =>
 	await page.waitForFunction(() => document.fullscreenElement === null);
 });
 
+test('touch pinch zooms the diagram canvas', async ({ browser }) => {
+	const context = await browser.newContext({
+		viewport: { width: 380, height: 780 },
+		hasTouch: true
+	});
+	const page = await context.newPage();
+	const cdp = await context.newCDPSession(page);
+	try {
+		await page.goto('http://localhost:4173/');
+		await page.locator('.diagram svg').waitFor();
+		const scale = () =>
+			page.evaluate(() => {
+				const m = /scale\(([\d.]+)\)/.exec(document.querySelector('.canvas')?.getAttribute('style') ?? '');
+				return m ? Number(m[1]) : 0;
+			});
+		const box = await page.locator('.diagram').boundingBox();
+		const cx = box!.x + box!.width / 2;
+		const cy = box!.y + box!.height / 2;
+		const before = await scale();
+		const touch = (type: string, pts: object[]) =>
+			cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts } as never);
+		await touch('touchStart', [
+			{ x: cx - 60, y: cy, id: 1 },
+			{ x: cx + 60, y: cy, id: 2 }
+		]);
+		for (let d = 60; d <= 150; d += 15) {
+			await touch('touchMove', [
+				{ x: cx - d, y: cy, id: 1 },
+				{ x: cx + d, y: cy, id: 2 }
+			]);
+			await page.waitForTimeout(30);
+		}
+		await touch('touchEnd', []);
+		await page.waitForTimeout(150);
+		expect(await scale()).toBeGreaterThan(before * 1.2);
+	} finally {
+		await context.close();
+	}
+});
+
 test('boots when localStorage access is blocked entirely', async ({ browser }) => {
 	// Chrome's "Block all cookies" makes every localStorage access throw.
 	// A dedicated browser is needed because the flag is a launch arg.

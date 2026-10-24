@@ -116,31 +116,73 @@
 
 	let panning = $state(false);
 
+	// Active pointers for the pan/pinch gesture. One pointer pans; two pinch:
+	// the distance ratio drives the scale, the midpoint travel pans — the
+	// standard canvas gesture. Both map against state captured when the
+	// pointer set last changed, so the gesture stays stable mid-pinch.
+	const pointers = new Map<number, { x: number; y: number }>();
+	let gesture: { scale: number; x: number; y: number; dist: number; mx: number; my: number } | null =
+		null;
+
+	function captureGesture() {
+		const [a, b] = [...pointers.values()];
+		if (!a) {
+			gesture = null;
+			return;
+		}
+		gesture = {
+			scale: view.scale,
+			x: view.x,
+			y: view.y,
+			dist: b ? Math.hypot(b.x - a.x, b.y - a.y) : 0,
+			mx: b ? (a.x + b.x) / 2 : a.x,
+			my: b ? (a.y + b.y) / 2 : a.y
+		};
+	}
+
 	function startPan(event: PointerEvent) {
 		if (event.button !== 0 || !outcome.ok) return;
 		// The floating toolbars keep their own clicks.
 		if (event.target instanceof Element && event.target.closest('button, a, input, .side-tools, .zoom-tools, .export-popover')) {
 			return;
 		}
-		const startX = event.clientX;
-		const startY = event.clientY;
-		const baseX = view.x;
-		const baseY = view.y;
+		pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+		captureGesture();
 		panning = true;
-		const move = (e: PointerEvent) => {
-			view.x = baseX + (e.clientX - startX);
-			view.y = baseY + (e.clientY - startY);
-			clampPan();
-		};
-		const up = () => {
-			panning = false;
-			window.removeEventListener('pointermove', move);
-			window.removeEventListener('pointerup', up);
-			window.removeEventListener('pointercancel', up);
-		};
-		window.addEventListener('pointermove', move);
-		window.addEventListener('pointerup', up);
-		window.addEventListener('pointercancel', up);
+	}
+
+	function onPointerMove(event: PointerEvent) {
+		if (!pointers.has(event.pointerId) || !gesture) return;
+		pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+		const pts = [...pointers.values()];
+		if (pts.length >= 2 && gesture.dist > 0) {
+			// Pinch: scale by the distance ratio around the current midpoint,
+			// then pan by how far the midpoint itself travelled.
+			const [a, b] = pts;
+			const rect = frame?.getBoundingClientRect();
+			if (!rect) return;
+			const dist = Math.hypot(b.x - a.x, b.y - a.y);
+			const next = Math.min(MAX_SCALE, Math.max(0.05, gesture.scale * (dist / gesture.dist)));
+			const midX = (a.x + b.x) / 2;
+			const midY = (a.y + b.y) / 2;
+			const px = midX - rect.left - rect.width / 2;
+			const py = midY - rect.top - rect.height / 2;
+			const applied = next / gesture.scale;
+			view.x = px - (px - gesture.x) * applied + (midX - gesture.mx);
+			view.y = py - (py - gesture.y) * applied + (midY - gesture.my);
+			view.scale = next;
+		} else if (pts.length === 1) {
+			view.x = gesture.x + (pts[0].x - gesture.mx);
+			view.y = gesture.y + (pts[0].y - gesture.my);
+		}
+		clampPan();
+	}
+
+	function endPan(event: PointerEvent) {
+		if (!pointers.delete(event.pointerId)) return;
+		if (pointers.size === 0) panning = false;
+		// Rebase so a lifted finger hands a clean pan to the remaining one.
+		captureGesture();
 	}
 
 	function onDoubleClick(event: MouseEvent) {
@@ -511,6 +553,8 @@
 	}
 </script>
 
+<svelte:window onpointermove={onPointerMove} onpointerup={endPan} onpointercancel={endPan} />
+
 <div
 	class="diagram-frame"
 	class:has-error={!outcome.ok}
@@ -521,7 +565,7 @@
 		<div
 			class="diagram"
 			role="img"
-			aria-label="Diagram preview — pan and zoom with the pointer, or use the zoom controls"
+			aria-label="Diagram preview — pan and zoom with the pointer, pinch with two fingers, or use the zoom controls"
 			class:panning
 			onwheel={onWheel}
 			onpointerdown={startPan}
@@ -1137,5 +1181,21 @@
 		font-family: var(--mono);
 		font-size: 12px;
 		opacity: 0.8;
+	}
+
+	/* Touch: keep the floating controls at comfortable tap sizes. */
+	@media (pointer: coarse) {
+		.zoom-tools button,
+		.side-tools button,
+		.export-toggle,
+		.export-close {
+			min-width: 40px;
+			min-height: 40px;
+		}
+
+		.png-modes button,
+		.png-bg-modes button {
+			min-height: 38px;
+		}
 	}
 </style>

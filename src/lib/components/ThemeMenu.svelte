@@ -2,6 +2,7 @@
 	import { THEMES, themeState, type ThemeChoice } from '$lib/theme.svelte';
 
 	let open = $state(false);
+	let toggle = $state<HTMLButtonElement | undefined>();
 
 	// Close on Escape or a click outside of it.
 	$effect(() => {
@@ -12,7 +13,13 @@
 			open = false;
 		};
 		const keyClose = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') open = false;
+			if (event.key !== 'Escape') return;
+			open = false;
+			// Keyboard users picking with Escape keep their place at the trigger.
+			const active = document.activeElement;
+			if (active !== toggle && active instanceof Element && active.closest('.theme-menu')) {
+				toggle?.focus();
+			}
 		};
 		document.addEventListener('click', close);
 		document.addEventListener('keydown', keyClose);
@@ -25,6 +32,8 @@
 	function pick(id: ThemeChoice) {
 		themeState.set(id);
 		open = false;
+		// The menu list unmounts on pick; without this, focus falls to <body>.
+		toggle?.focus();
 	}
 </script>
 
@@ -33,6 +42,7 @@
 		class="theme-toggle"
 		class:active={open}
 		aria-expanded={open}
+		bind:this={toggle}
 		onclick={() => (open = !open)}
 		title="Pick a theme"
 	>
@@ -152,5 +162,13 @@
 
 	.dot.matte {
 		background: #111111;
+	}
+
+	/* Touch: comfortable tap size for the menu rows. */
+	@media (pointer: coarse) {
+		.theme-toggle,
+		.menu button {
+			min-height: 40px;
+		}
 	}
 </style>

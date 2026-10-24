@@ -177,6 +177,8 @@
 		appState.load({ code: sample.source, config: '{}', css: sample.css ?? '' });
 		history.replaceState(null, '', window.location.pathname);
 		samplesOpen = false;
+		// The menu list unmounts on pick; without this, focus falls to <body>.
+		samplesToggle?.focus();
 	}
 
 	// --- Import (.mmd or any export of this editor with embedded state) ------
@@ -224,6 +226,8 @@
 
 	let samplesOpen = $state(false);
 	let historyOpen = $state(false);
+	let samplesToggle = $state<HTMLElement>();
+	let historyToggle = $state<HTMLButtonElement>();
 	let editorTab = $state<'diagram' | 'config' | 'css'>('diagram');
 	// The theme label is rendered after hydration: the prerendered page cannot
 	// know the saved choice, and a differing label would be a hydration mismatch.
@@ -245,7 +249,13 @@
 			historyOpen = false;
 		};
 		const keyClose = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') historyOpen = false;
+			if (event.key !== 'Escape') return;
+			historyOpen = false;
+			// Keyboard users closing from inside the panel keep their place.
+			const active = document.activeElement;
+			if (active instanceof Element && active.closest('.history-menu')) {
+				historyToggle?.focus();
+			}
 		};
 		document.addEventListener('click', close);
 		document.addEventListener('keydown', keyClose);
@@ -270,7 +280,13 @@
 			if (!event.target.closest('.menu')) samplesOpen = false;
 		};
 		const keyClose = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') samplesOpen = false;
+			if (event.key !== 'Escape') return;
+			samplesOpen = false;
+			// Keyboard users closing from inside the menu keep their place.
+			const active = document.activeElement;
+			if (active instanceof Element && active.closest('.menu') && active !== samplesToggle) {
+				samplesToggle?.focus();
+			}
 		};
 		document.addEventListener('click', close);
 		document.addEventListener('keydown', keyClose);
@@ -314,7 +330,7 @@
 		<span class="tagline">renders locally, nothing leaves your browser</span>
 		<div class="actions">
 			<details class="menu" bind:open={samplesOpen}>
-				<summary class="action">Samples</summary>
+				<summary class="action" bind:this={samplesToggle}>Samples</summary>
 				<div class="menu-list">
 					{#each SAMPLES as sample, i (sample.name)}
 						{#if sample.name.startsWith('Styling') && !SAMPLES[i - 1]?.name.startsWith('Styling')}
@@ -328,6 +344,7 @@
 				class="action history-toggle"
 				class:active={historyOpen}
 				aria-expanded={historyOpen}
+				bind:this={historyToggle}
 				onclick={() => (historyOpen = !historyOpen)}
 				title="Projects, saved versions, and a timeline of your work"
 			>
