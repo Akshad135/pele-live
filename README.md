@@ -1,8 +1,8 @@
 # pele.live
 
 A clean Mermaid playground powered by [Pele](https://github.com/obsidianmd/pele).
-No accounts, no subscription, no tracking — diagrams render locally in your
-browser and nothing ever leaves it.
+No accounts, no subscription — diagrams render locally in your browser and the
+diagram data never leaves it (page views are counted by Vercel Analytics).
 
 ## Features
 
@@ -35,7 +35,9 @@ bun run build   # static production build in build/
 
 `bun run build` writes a fully static site to `build/`. Host it anywhere that
 serves files — Netlify, Vercel, Cloudflare Pages, GitHub Pages, nginx. There is
-no backend.
+no backend. `vercel.json` enables Vercel's clean URLs so the popout route
+(`/view`) resolves; it lives in `static/` too, so a drag-and-drop of `build/`
+works as well.
 
 ## Credits
 

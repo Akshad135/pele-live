@@ -165,7 +165,10 @@
 			config: appState.config,
 			css: appState.css
 		})}`;
-		window.open(url, '_blank', 'noopener');
+		// A blocked popup returns null — nothing visibly happens. Navigating
+		// in place keeps the escape hatch: the view page's "Back to editor"
+		// brings the diagram back into the editor.
+		if (!window.open(url, '_blank', 'noopener')) window.location.href = url;
 	}
 
 	function openSample(name: string) {
