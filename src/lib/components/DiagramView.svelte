@@ -24,11 +24,9 @@
 		css?: string;
 		/** Editor state embedded into exports so files can be re-imported. */
 		shared?: SharedState;
-		/** Link target for opening the current diagram in its own tab; hidden when absent. */
-		popoutHref?: string;
 	}
 
-	let { outcome, css = '', shared, popoutHref }: Props = $props();
+	let { outcome, css = '', shared }: Props = $props();
 
 	// The canvas renders client-side only: a prerendered page cannot know the
 	// saved session, and {@html} hydration trusts the server DOM, so any
@@ -551,6 +549,28 @@
 			exportError = 'Fullscreen was blocked by the browser.';
 		}
 	}
+
+	// Immersive mode: a fullscreen-only escape from every floating control.
+	// The canvas (with its background/grid) and the eye stay; the corners go.
+	let fullscreenOn = $state(false);
+	let immersive = $state(false);
+
+	$effect(() => {
+		const track = () => {
+			fullscreenOn = document.fullscreenElement === frame;
+			// Leaving fullscreen (button or Esc) also ends immersive mode, so
+			// the controls are back the next time fullscreen is entered.
+			if (!fullscreenOn) immersive = false;
+		};
+		document.addEventListener('fullscreenchange', track);
+		track();
+		return () => document.removeEventListener('fullscreenchange', track);
+	});
+
+	function toggleImmersive() {
+		immersive = !immersive;
+		if (immersive) exportOpen = false;
+	}
 </script>
 
 <svelte:window onpointermove={onPointerMove} onpointerup={endPan} onpointercancel={endPan} />
@@ -559,6 +579,7 @@
 	class="diagram-frame"
 	class:has-error={!outcome.ok}
 	class:grid={grid && outcome.ok}
+	class:immersive={immersive}
 	bind:this={frame}
 >
 	{#if outcome.ok}
@@ -610,40 +631,47 @@
 			</button>
 		</div>
 		<div class="side-tools">
-			<button class="export-toggle" bind:this={exportToggle} onclick={() => (exportOpen = !exportOpen)} aria-expanded={exportOpen} title="Export the diagram">
-				Export
-			</button>
-			<span class="side-sep" aria-hidden="true"></span>
-			{#if popoutHref}
-				<!-- A real link, never window.open: script-opened tabs are what popup
-				     blockers and privacy extensions eat, and a link also gives
-				     middle-click and the link context menu for free. -->
-				<a
-					href={popoutHref}
-					target="_blank"
-					rel="noopener"
-					title="Open the diagram in its own tab"
-				>
+			<div class="side-controls">
+				<button class="export-toggle" bind:this={exportToggle} onclick={() => (exportOpen = !exportOpen)} aria-expanded={exportOpen} title="Export the diagram">
+					Export
+				</button>
+				<span class="side-sep" aria-hidden="true"></span>
+				<button onclick={fullscreen} title="Fullscreen">
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-						<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+						<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
 					</svg>
-				</a>
+				</button>
+				<button onclick={toggleRough} title={roughOn ? 'Hand-drawn look is on' : 'Hand-drawn look'} aria-pressed={roughOn}>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586" />
+					</svg>
+				</button>
+				<button onclick={toggleGrid} title={grid ? 'Hide grid' : 'Show grid'} aria-pressed={grid}>
+					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
+					</svg>
+				</button>
+			</div>
+			{#if fullscreenOn}
+				<button
+					class="eye"
+					onclick={toggleImmersive}
+					aria-pressed={immersive}
+					title={immersive ? 'Show controls' : 'Hide all controls'}
+				>
+					{#if immersive}
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+							<path d="M2 2l20 20" />
+						</svg>
+					{:else}
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+							<circle cx="12" cy="12" r="3" />
+						</svg>
+					{/if}
+				</button>
 			{/if}
-			<button onclick={fullscreen} title="Fullscreen">
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3" />
-				</svg>
-			</button>
-			<button onclick={toggleRough} title={roughOn ? 'Hand-drawn look is on' : 'Hand-drawn look'} aria-pressed={roughOn}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-					<path d="M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586" />
-				</svg>
-			</button>
-			<button onclick={toggleGrid} title={grid ? 'Hide grid' : 'Show grid'} aria-pressed={grid}>
-				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true">
-					<path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-				</svg>
-			</button>
 		</div>
 		{#if exportOpen}
 			<div
@@ -859,12 +887,10 @@
 	}
 
 	.zoom-tools button,
-	.side-tools button,
-	.side-tools a {
+	.side-tools button {
 		border: 0;
 		background: transparent;
 		color: var(--fg);
-		text-decoration: none;
 		border-radius: 8px;
 		padding: 6px 11px;
 		font-size: 12.5px;
@@ -876,8 +902,7 @@
 	}
 
 	.zoom-tools button:hover,
-	.side-tools button:hover,
-	.side-tools a:hover {
+	.side-tools button:hover {
 		background: var(--accent-soft);
 		color: var(--accent);
 	}
@@ -901,6 +926,31 @@
 		border: 1px solid var(--border);
 		border-radius: 11px;
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
+	}
+
+	/* The controls that disappear in immersive mode; the eye lives outside it. */
+	.side-controls {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+	}
+
+	/* Immersive mode (fullscreen + eye): only the canvas with its background
+	   and grid, and the eye itself. Every corner control goes away. */
+	.immersive .badge,
+	.immersive .docs-link,
+	.immersive .zoom-tools,
+	.immersive .side-controls {
+		display: none;
+	}
+
+	.immersive .side-tools {
+		background: none;
+		border: 0;
+		box-shadow: none;
+		backdrop-filter: none;
+		-webkit-backdrop-filter: none;
+		padding: 0;
 	}
 
 	.side-sep {

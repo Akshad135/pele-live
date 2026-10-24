@@ -245,25 +245,37 @@ test('importing a .mmd file loads it into the editor', async ({ page }) => {
 	await expect(page.locator('.badge')).toHaveText('pie');
 });
 
-test('popout opens the diagram in its own tab and back turns it into the editor', async ({ page }) => {
-	await page.waitForTimeout(400); // hydration, so the popout link carries current state
-	const popupPromise = page.context().waitForEvent('page');
-	// A real target="_blank" link (never window.open — popup blockers eat those).
-	await page.locator('.side-tools a[title*="own tab"]').click();
-	const popup = await popupPromise;
-	await expect(popup.locator('.diagram svg').first()).toBeVisible();
-	await expect(popup.locator('.badge')).toHaveText('flowchart');
-	await expect(popup.getByRole('link', { name: 'Back to editor' })).toBeVisible();
+test('fullscreen hides every control behind the eye toggle, and Esc restores', async ({ page }) => {
+	await page.locator('.side-tools button[title="Fullscreen"]').click();
+	await page.waitForFunction(() => document.fullscreenElement !== null);
 
-	// Back to editor navigates the popout tab into a full editor carrying the
-	// same diagram (never window.close(): the tab may be user-opened, e.g.
-	// from a link on another site).
-	await popup.getByRole('link', { name: 'Back to editor' }).click();
-	await expect(popup.locator('.source-editor .cm-content')).toBeVisible();
-	await expect(popup).not.toHaveURL(/\/view/);
-});
+	// The eye only exists in fullscreen. It hides the corner controls…
+	const eye = page.locator('.side-tools .eye');
+	await expect(eye).toBeVisible();
+	await eye.click();
+	await expect(page.locator('.badge')).toBeHidden();
+	await expect(page.locator('.zoom-tools')).toBeHidden();
+	await expect(page.locator('.export-toggle')).toBeHidden();
+	await expect(page.locator('.side-sep')).toBeHidden();
+	// …but never itself, and the diagram/grid stay.
+	await expect(eye).toBeVisible();
+	await expect(eye).toHaveAttribute('title', 'Show controls');
+	await expect(page.locator('.diagram svg').first()).toBeVisible();
 
-test('fullscreen button requests fullscreen on the preview', async ({ page }) => {
+	// Toggling again brings everything back.
+	await eye.click();
+	await expect(page.locator('.badge')).toBeVisible();
+	await expect(page.locator('.zoom-tools')).toBeVisible();
+
+	// Leaving fullscreen (Esc in a real browser) ends immersive mode and the
+	// eye goes with it. Headless Chromium ignores the Esc accelerator, so the
+	// same fullscreenchange path is driven directly.
+	await page.evaluate(() => document.exitFullscreen());
+	await page.waitForFunction(() => document.fullscreenElement === null);
+	await expect(page.locator('.badge')).toBeVisible();
+	await expect(eye).toHaveCount(0);
+
+	// The plain button toggle still exits fullscreen.
 	await page.locator('.side-tools button[title="Fullscreen"]').click();
 	await page.waitForFunction(() => document.fullscreenElement !== null);
 	await page.locator('.side-tools button[title="Fullscreen"]').click();
