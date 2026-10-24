@@ -246,9 +246,10 @@ test('importing a .mmd file loads it into the editor', async ({ page }) => {
 });
 
 test('popout opens the diagram in its own tab and back turns it into the editor', async ({ page }) => {
-	await page.waitForTimeout(400); // hydration, so the popout carries current state
+	await page.waitForTimeout(400); // hydration, so the popout link carries current state
 	const popupPromise = page.context().waitForEvent('page');
-	await page.locator('.side-tools button[title*="own tab"]').click();
+	// A real target="_blank" link (never window.open — popup blockers eat those).
+	await page.locator('.side-tools a[title*="own tab"]').click();
 	const popup = await popupPromise;
 	await expect(popup.locator('.diagram svg').first()).toBeVisible();
 	await expect(popup.locator('.badge')).toHaveText('flowchart');

@@ -24,11 +24,11 @@
 		css?: string;
 		/** Editor state embedded into exports so files can be re-imported. */
 		shared?: SharedState;
-		/** Opens the current diagram in its own tab. Button hidden when absent. */
-		onpopout?: () => void;
+		/** Link target for opening the current diagram in its own tab; hidden when absent. */
+		popoutHref?: string;
 	}
 
-	let { outcome, css = '', shared, onpopout }: Props = $props();
+	let { outcome, css = '', shared, popoutHref }: Props = $props();
 
 	// The canvas renders client-side only: a prerendered page cannot know the
 	// saved session, and {@html} hydration trusts the server DOM, so any
@@ -614,12 +614,20 @@
 				Export
 			</button>
 			<span class="side-sep" aria-hidden="true"></span>
-			{#if onpopout}
-				<button onclick={onpopout} title="Open the diagram in its own tab">
+			{#if popoutHref}
+				<!-- A real link, never window.open: script-opened tabs are what popup
+				     blockers and privacy extensions eat, and a link also gives
+				     middle-click and the link context menu for free. -->
+				<a
+					href={popoutHref}
+					target="_blank"
+					rel="noopener"
+					title="Open the diagram in its own tab"
+				>
 					<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 						<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
 					</svg>
-				</button>
+				</a>
 			{/if}
 			<button onclick={fullscreen} title="Fullscreen">
 				<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -851,10 +859,12 @@
 	}
 
 	.zoom-tools button,
-	.side-tools button {
+	.side-tools button,
+	.side-tools a {
 		border: 0;
 		background: transparent;
 		color: var(--fg);
+		text-decoration: none;
 		border-radius: 8px;
 		padding: 6px 11px;
 		font-size: 12.5px;
@@ -866,7 +876,8 @@
 	}
 
 	.zoom-tools button:hover,
-	.side-tools button:hover {
+	.side-tools button:hover,
+	.side-tools a:hover {
 		background: var(--accent-soft);
 		color: var(--accent);
 	}

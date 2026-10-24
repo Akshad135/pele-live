@@ -10,6 +10,7 @@
 	import { PeleError } from 'pele';
 	import { serializeState } from '$lib/serde';
 	import { SAMPLES } from '$lib/samples';
+	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 
 	// Split position as a fraction of the playground width, persisted.
@@ -159,17 +160,16 @@
 		copyTimer = setTimeout(() => (copied = false), 1600);
 	}
 
-	function popout() {
-		const url = `${window.location.origin}/view#${serializeState({
-			code: appState.code,
-			config: appState.config,
-			css: appState.css
-		})}`;
-		// No blocked-popup fallback: with 'noopener', window.open returns null
-		// even when it succeeds, so the return value cannot be trusted. A
-		// browser-blocked popup shows its own blocked-popup indicator.
-		window.open(url, '_blank', 'noopener');
-	}
+	// The popout is a plain target="_blank" link built from live state — a
+	// native navigation popup blockers never touch (unlike window.open, which
+	// some browsers/extensions block even from a click). Relative so it works
+	// on any deployment host. The state hash is browser-only: at prerender
+	// time SvelteKit would read it as an anchor id and fail the build.
+	const popoutHref = $derived(
+		browser
+			? `/view#${serializeState({ code: appState.code, config: appState.config, css: appState.css })}`
+			: '/view'
+	);
 
 	function openSample(name: string) {
 		const sample = SAMPLES.find((s) => s.name === name);
@@ -462,7 +462,7 @@
 				{outcome}
 				css={appState.css}
 				shared={{ code: appState.code, config: appState.config, css: appState.css }}
-				onpopout={popout}
+				popoutHref={popoutHref}
 			/>
 		</section>
 	</div>
