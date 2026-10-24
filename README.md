@@ -19,21 +19,21 @@ browser and nothing ever leaves it.
 ## Develop
 
 ```sh
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ## Test
 
 ```sh
-npm test        # unit tests (renderer wrapper, serde, diagnostics, samples)
-npm run check   # svelte-check
-npm run build   # static production build in build/
+bun run test    # unit tests (renderer wrapper, serde, diagnostics, samples)
+bun run check   # svelte-check
+bun run build   # static production build in build/
 ```
 
 ## Deploy
 
-`npm run build` writes a fully static site to `build/`. Host it anywhere that
+`bun run build` writes a fully static site to `build/`. Host it anywhere that
 serves files — Netlify, Vercel, Cloudflare Pages, GitHub Pages, nginx. There is
 no backend.
 

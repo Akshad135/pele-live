@@ -8,7 +8,7 @@ export default defineConfig({
 		permissions: ['clipboard-read', 'clipboard-write']
 	},
 	webServer: {
-		command: 'npm run preview -- --port 4173 --strictPort',
+		command: 'bun run preview --port 4173 --strictPort',
 		port: 4173,
 		reuseExistingServer: false
 	}
