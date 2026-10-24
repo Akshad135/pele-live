@@ -83,7 +83,20 @@
 	let lastRenderMs = 0;
 	let outcome = $state<RenderOutcome>(renderNow());
 
+	// Dev-only: after a hot update, Svelte's state preservation can keep
+	// `outcome` holding a stale render while the editor state moved on, so
+	// the canvas and the editor visibly diverge until some action re-renders.
+	// Force one immediate re-render on every hot update to re-sync them.
+	let hmrTick = $state(0);
+	if (import.meta.hot) {
+		import.meta.hot.on('vite:afterUpdate', () => {
+			lastRenderMs = 0;
+			hmrTick++;
+		});
+	}
+
 	$effect(() => {
+		void hmrTick;
 		if (lastRenderMs < FAST_RENDER_MS) {
 			const started = performance.now();
 			outcome = renderNow();

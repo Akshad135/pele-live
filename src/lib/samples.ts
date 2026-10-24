@@ -221,13 +221,18 @@ flowchart TB
   stroke: #2563eb;
   stroke-width: 1.5px;
 }
-.diagram-frame svg .pele-node[data-id='db'] * {
+/* Hardcoded fills must carry their own label color, or the theme's label
+   color (white on dark themes) disappears on them. */
+.diagram-frame svg .pele-node text {
+  fill: #1e293b;
+}
+.diagram-frame svg .pele-node[data-id='db'] rect {
   fill: #fff7ed;
   stroke: #d97706;
 }
 .diagram-frame svg .pele-edge-label {
   font-size: 13px;
-  color: #475569;
+  fill: #475569;
 }`
 	}
 ];

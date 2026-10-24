@@ -110,35 +110,36 @@
 	--pele-node-6-line: #a3bd5c;
 }
 
-/* Calm cool light: white surface, slate text, teal accent. No cream. */
+/* Calm warm paper: stone surfaces, warm greys, teal accent. Distinct from
+   Day's cool zinc — warm vs cool is the whole point of having both. */
 :root[data-theme='paper'] {
-	--bg: #eef1f4;
+	--bg: #f1efeb;
 	--surface: #ffffff;
-	--fg: #1c2530;
-	--muted: #64748b;
-	--border: #dde3ea;
-	--border-strong: #cbd5e1;
+	--fg: #23201b;
+	--muted: #857f74;
+	--border: #e3dfd7;
+	--border-strong: #cfc9be;
 	--accent: #0f766e;
 	--accent-soft: rgba(15, 118, 110, 0.09);
 	--accent-fg: #ffffff;
 	--error-bg: #fef2f2;
 	--error-fg: #b91c1c;
 	--error-border: #fecaca;
-	--grid-dot: #d3dae2;
+	--grid-dot: #dcd7cd;
 	--syntax-keyword: #0e7490;
 	--syntax-string: #047857;
-	--syntax-comment: #94a3b8;
+	--syntax-comment: #a8a29e;
 	--syntax-meta: #7c3aed;
-	--syntax-operator: #64748b;
+	--syntax-operator: #78716c;
 
-	/* Diagram tokens (pele). */
+	/* Diagram tokens (pele). Warm off-white, stone lines. */
 	--pele-bg: #ffffff;
-	--pele-fg: #1c2530;
-	--pele-muted: #64748b;
-	--pele-line: #334155;
-	--pele-surface: #f1f5f9;
-	--pele-surface-alt: #e2e8f0;
-	--pele-border: #cbd5e1;
+	--pele-fg: #23201b;
+	--pele-muted: #857f74;
+	--pele-line: #4a453c;
+	--pele-surface: #f7f5f1;
+	--pele-surface-alt: #ece9e2;
+	--pele-border: #d8d3c8;
 	--pele-accent: #0f766e;
 	--pele-critical: #dc2626;
 	--pele-series-1: #dc2626;

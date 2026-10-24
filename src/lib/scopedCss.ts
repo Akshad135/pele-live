@@ -80,9 +80,11 @@ export function scopeCss(css: string, scope: string): string {
 			pending += css.slice(i, end);
 			i = end;
 		} else if (ch === '/' && css[i + 1] === '*') {
-			const end = skipComment(css, i);
-			pending += css.slice(i, end);
-			i = end;
+			// A comment counts as whitespace, never as selector text: dropping
+			// it keeps its words out of the selector (a comment before a rule
+			// would otherwise be prefixed — or split — and corrupt the rule).
+			pending += ' ';
+			i = skipComment(css, i);
 		} else if (ch === '{') {
 			const close = matchBrace(css, i);
 			const rawBody = css.slice(i + 1, close === -1 ? css.length : close);

@@ -66,7 +66,8 @@
 
 	.back {
 		position: fixed;
-		top: 14px;
+		/* Below the zoom tools, which own the top-right corner. */
+		top: 60px;
 		right: 14px;
 		z-index: 20;
 		text-decoration: none;
