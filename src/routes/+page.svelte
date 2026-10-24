@@ -45,6 +45,20 @@
 		window.addEventListener('pointercancel', up);
 	}
 
+	// Keyboard twin of the divider drag, for people who don't use a pointer.
+	function dividerKey(event: KeyboardEvent) {
+		const forward = stacked ? event.key === 'ArrowDown' : event.key === 'ArrowRight';
+		const back = stacked ? event.key === 'ArrowUp' : event.key === 'ArrowLeft';
+		if (!forward && !back) return;
+		event.preventDefault();
+		split = Math.min(0.8, Math.max(0.2, split + (forward ? 0.03 : -0.03)));
+		try {
+			localStorage.setItem(SPLIT_KEY, String(split));
+		} catch {
+			// Saving the split is a nicety, not a requirement.
+		}
+	}
+
 	if (typeof localStorage !== 'undefined') {
 		try {
 			const saved = Number(localStorage.getItem(SPLIT_KEY));
@@ -158,6 +172,7 @@
 	let fileInput = $state<HTMLInputElement | undefined>();
 	let dragOver = $state(false);
 	let importError = $state('');
+	let importFailed = $state(false);
 	let importErrorTimer: ReturnType<typeof setTimeout> | undefined;
 
 	async function importFiles(files: FileList | undefined | null) {
@@ -167,13 +182,16 @@
 			const result = await importDiagramFile(file);
 			if ('error' in result) {
 				importError = result.error;
+				importFailed = true;
 			} else {
 				appState.load(result);
 				history.replaceState(null, '', window.location.pathname);
 				importError = result.warn ?? `Imported ${file.name}`;
+				importFailed = Boolean(result.warn);
 			}
 		} catch {
 			importError = `Could not read ${file.name}.`;
+			importFailed = true;
 		}
 		if (fileInput) fileInput.value = '';
 		clearTimeout(importErrorTimer);
@@ -272,7 +290,7 @@
 	ondrop={onDrop}
 >
 	{#if importError}
-		<p class="import-toast" role="alert">{importError}</p>
+		<p class="import-toast" class:failed={importFailed} role="alert">{importError}</p>
 	{/if}
 	{#if dragOver}
 		<div class="drop-hint" aria-hidden="true">Drop to import</div>
@@ -298,6 +316,7 @@
 			<button
 				class="action history-toggle"
 				class:active={historyOpen}
+				aria-expanded={historyOpen}
 				onclick={() => (historyOpen = !historyOpen)}
 				title="Projects, saved versions, and a timeline of your work"
 			>
@@ -333,8 +352,8 @@
 			class:stacked
 			bind:this={panes}
 			style={stacked
-				? `grid-template-rows: ${split}fr 6px ${1 - split}fr`
-				: `grid-template-columns: ${split}fr 6px ${1 - split}fr`}
+				? `grid-template-rows: ${split}fr 8px ${1 - split}fr`
+				: `grid-template-columns: ${split}fr 8px ${1 - split}fr`}
 		>
 		<section class="pane" aria-label="Mermaid source">
 			<div class="editor-tabs">
@@ -386,7 +405,7 @@
 						class="config-editor css-editor"
 						spellcheck="false"
 						aria-label="Custom diagram CSS"
-						placeholder={'.pele-node {\n  fill: #eef4ff;\n}'}
+						placeholder={'.pele-node {\n  fill: #eef4ff;\n}\n\n/* Keep labels readable: */\n.pele-node text {\n  fill: #1e293b;\n}'}
 						bind:value={appState.css}
 					></textarea>
 					<p class="config-hint">
@@ -396,12 +415,19 @@
 				</div>
 			{/if}
 		</section>
+		<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div
 			class="divider"
 			role="separator"
 			aria-orientation={stacked ? 'horizontal' : 'vertical'}
 			aria-label="Resize panes"
+			aria-valuemin={20}
+			aria-valuemax={80}
+			aria-valuenow={Math.round(split * 100)}
+			tabindex="0"
 			onpointerdown={startDrag}
+			onkeydown={dividerKey}
 		></div>
 		<section class="pane" aria-label="Diagram preview">
 			<DiagramView
@@ -419,9 +445,9 @@
 	header {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		height: 52px;
-		padding: 0 16px;
+		gap: 16px;
+		height: 56px;
+		padding: 0 20px;
 		border-bottom: 1px solid var(--border);
 		background: var(--surface);
 		flex-shrink: 0;
@@ -457,7 +483,7 @@
 		margin-left: auto;
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 	}
 
 	.action {
@@ -465,8 +491,8 @@
 		background: transparent;
 		color: var(--fg);
 		border-radius: 8px;
-		padding: 6px 12px;
-		font-size: 13px;
+		padding: 7px 14px;
+		font-size: 13.5px;
 		font-weight: 500;
 		cursor: pointer;
 		transition: background 100ms;
@@ -493,8 +519,8 @@
 	/* History dropdown, anchored to the header's right edge. */
 	.history-menu {
 		position: absolute;
-		top: calc(100% + 2px);
-		right: 12px;
+		top: calc(100% + 6px);
+		right: 16px;
 		z-index: 30;
 	}
 
@@ -522,18 +548,18 @@
 	.menu-list {
 		position: absolute;
 		right: 0;
-		top: calc(100% + 6px);
+		top: calc(100% + 8px);
 		z-index: 10;
-		min-width: 200px;
+		min-width: 220px;
 		max-height: 70vh;
 		overflow: auto;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 10px;
+		border-radius: 12px;
 		box-shadow:
 			0 4px 12px rgb(0 0 0 / 0.08),
 			0 16px 32px rgb(0 0 0 / 0.08);
-		padding: 4px;
+		padding: 6px;
 		display: grid;
 	}
 
@@ -541,14 +567,14 @@
 		text-align: left;
 		border: 0;
 		background: none;
-		padding: 7px 12px;
-		border-radius: 7px;
-		font-size: 13px;
+		padding: 9px 14px;
+		border-radius: 8px;
+		font-size: 13.5px;
 		cursor: pointer;
 	}
 
 	.menu-group {
-		margin: 4px 8px 0;
+		margin: 8px 10px 2px;
 		font-size: 11px;
 		font-weight: 600;
 		color: var(--muted);
@@ -581,12 +607,12 @@
 
 	.editor-tabs {
 		display: inline-flex;
-		gap: 2px;
-		padding: 3px;
-		margin: 8px 10px;
+		gap: 3px;
+		padding: 4px;
+		margin: 12px 14px;
 		background: var(--bg);
 		border: 1px solid var(--border);
-		border-radius: 9px;
+		border-radius: 10px;
 		align-self: flex-start;
 	}
 
@@ -594,8 +620,8 @@
 		border: 0;
 		background: transparent;
 		border-radius: 7px;
-		padding: 4px 14px;
-		font-size: 12.5px;
+		padding: 6px 16px;
+		font-size: 13px;
 		font-weight: 500;
 		color: var(--muted);
 		cursor: pointer;
@@ -621,8 +647,8 @@
 	.config-body {
 		display: flex;
 		flex-direction: column;
-		padding: 12px 14px;
-		gap: 10px;
+		padding: 14px 16px;
+		gap: 12px;
 	}
 
 	.config-editor {
@@ -636,7 +662,7 @@
 		font-family: var(--mono);
 		font-size: 13px;
 		line-height: 1.55;
-		padding: 10px 12px;
+		padding: 12px 14px;
 	}
 
 	.config-editor:focus {
@@ -646,13 +672,13 @@
 
 	.config-error {
 		margin: 0;
-		font-size: 12.5px;
+		font-size: 13px;
 		color: var(--error-fg);
 	}
 
 	.config-hint {
 		margin: 0;
-		font-size: 12.5px;
+		font-size: 13px;
 		color: var(--muted);
 	}
 
@@ -661,6 +687,11 @@
 		background: var(--border);
 		touch-action: none;
 		transition: background 120ms;
+	}
+
+	.divider:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
 	}
 
 	.divider:hover {
@@ -684,6 +715,14 @@
 			height: auto;
 			min-height: 52px;
 			padding: 6px 10px;
+		}
+
+		/* The action group itself wraps too — as one rigid item it overflowed
+		   phone widths even while the header allowed wrapping. */
+		.actions {
+			flex-wrap: wrap;
+			justify-content: flex-end;
+			row-gap: 6px;
 		}
 
 		.action {

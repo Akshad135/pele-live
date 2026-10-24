@@ -88,8 +88,11 @@ test('projects save under a name, open back, and get deleted', async ({ page }) 
 
 	await page.getByRole('button', { name: 'History' }).click();
 	await page.getByRole('button', { name: 'Save project' }).click();
-	// The new project goes straight into rename mode; give it a name.
+	// The new project goes straight into rename mode; the input is focused
+	// (autofocus is ignored on dynamically inserted elements, so it is set in
+	// code) with the suggested name preselected.
 	const rename = page.locator('.rename');
+	await expect(rename).toBeFocused();
 	await rename.fill('Release plan');
 	await rename.press('Enter');
 	await expect(page.locator('.panel .name')).toContainText('Release plan');
@@ -114,18 +117,18 @@ test('projects save under a name, open back, and get deleted', async ({ page }) 
 
 test('theme menu switches between five themes', async ({ page }) => {
 	await page.locator('.theme-toggle').click();
-	await page.getByRole('option', { name: 'Midnight' }).click();
+	await page.getByRole('button', { name: 'Midnight' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight');
 	// The attribute alone proves nothing if no CSS block matches it; assert paint.
 	const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 	await page.locator('.theme-toggle').click();
-	await page.getByRole('option', { name: 'Paper' }).click();
+	await page.getByRole('button', { name: 'Paper' }).click();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'paper');
 	const lightBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 	expect(darkBg).not.toBe(lightBg);
 	// System removes the attribute so the media queries decide.
 	await page.locator('.theme-toggle').click();
-	await page.getByRole('option', { name: 'System' }).click();
+	await page.getByRole('button', { name: 'System' }).click();
 	await expect(page.locator('html')).not.toHaveAttribute('data-theme');
 });
 
@@ -195,6 +198,28 @@ test('PNG export offers size modes and downloads with state', async ({ page }) =
 	expect(download.suggestedFilename()).toBe('diagram-with-editor-state.png');
 });
 
+test('PNG export offers background options', async ({ page }) => {
+	await page.locator('.export-toggle').click();
+	const modes = page.locator('.png-bg-modes button');
+	await expect(modes).toHaveCount(3);
+	// Theme background is the default.
+	await expect(modes.filter({ hasText: 'Theme' })).toHaveAttribute('aria-pressed', 'true');
+	// The size readout makes the auto mode (and any clamp) visible.
+	await expect(page.locator('.png-readout')).toContainText(/Exports at \d+ × \d+ px/);
+	// Transparent hides the color picker; the download still works.
+	await modes.filter({ hasText: 'Transparent' }).click();
+	await expect(modes.filter({ hasText: 'Transparent' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.locator('.png-color')).toHaveCount(0);
+	// Custom reveals a color picker, seeded with the theme color.
+	await modes.filter({ hasText: 'Custom' }).click();
+	const color = page.locator('.png-color');
+	await expect(color).toHaveCount(1);
+	await expect(color).toHaveValue(/#[0-9a-f]{6}/);
+	const downloadPromise = page.waitForEvent('download');
+	await page.locator('.export-popover').getByRole('button', { name: 'Download .png' }).click();
+	expect((await downloadPromise).suggestedFilename()).toBe('diagram-with-editor-state.png');
+});
+
 test('hand-drawn mode shows exactly one sketch across re-renders and themes', async ({ page }) => {
 	await page.waitForSelector('.diagram svg');
 	await page.locator('button[title="Hand-drawn look"]').click();
@@ -205,7 +230,7 @@ test('hand-drawn mode shows exactly one sketch across re-renders and themes', as
 	await ed.type('sequenceDiagram\n  A->>B: fresh sketch');
 	await expect(page.locator('.sketch-host svg')).toHaveCount(1);
 	await page.locator('.theme-toggle').click();
-	await page.getByRole('option', { name: 'Midnight' }).click();
+	await page.getByRole('button', { name: 'Midnight' }).click();
 	await expect(page.locator('.sketch-host svg')).toHaveCount(1);
 });
 

@@ -32,6 +32,7 @@
 	<button
 		class="theme-toggle"
 		class:active={open}
+		aria-expanded={open}
 		onclick={() => (open = !open)}
 		title="Pick a theme"
 	>
@@ -39,11 +40,10 @@
 		{themeState.label}
 	</button>
 	{#if open}
-		<div class="menu" role="listbox" aria-label="Theme">
+		<div class="menu">
 			{#each THEMES as option (option.id)}
 				<button
-					role="option"
-					aria-selected={themeState.current === option.id}
+					aria-pressed={themeState.current === option.id}
 					class:selected={themeState.current === option.id}
 					onclick={() => pick(option.id)}
 				>
@@ -65,14 +65,14 @@
 		background: transparent;
 		color: var(--fg);
 		border-radius: 8px;
-		padding: 6px 12px;
-		font-size: 13px;
+		padding: 7px 14px;
+		font-size: 13.5px;
 		font-weight: 500;
 		cursor: pointer;
 		transition: background 100ms;
 		display: flex;
 		align-items: center;
-		gap: 7px;
+		gap: 8px;
 	}
 
 	.theme-toggle:hover,
@@ -90,16 +90,16 @@
 
 	.menu {
 		position: absolute;
-		top: calc(100% + 4px);
+		top: calc(100% + 6px);
 		right: 0;
 		z-index: 40;
 		display: grid;
-		gap: 1px;
-		min-width: 150px;
-		padding: 4px;
+		gap: 2px;
+		min-width: 170px;
+		padding: 6px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: 12px;
 		box-shadow: 0 12px 40px rgb(0 0 0 / 0.16);
 	}
 
@@ -107,13 +107,13 @@
 		border: 0;
 		background: transparent;
 		color: var(--fg);
-		font-size: 13px;
-		padding: 7px 10px;
-		border-radius: 7px;
+		font-size: 13.5px;
+		padding: 8px 12px;
+		border-radius: 8px;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: 9px;
 		text-align: left;
 	}
 

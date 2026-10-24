@@ -64,6 +64,17 @@ describe('projects', () => {
 		expect(appState.css).toContain('fill: red');
 	});
 
+	it('renaming onto an existing name overwrites it', () => {
+		projectStore.save('Alpha');
+		appState.load({ code: 'pie title beta', config: '{}' });
+		projectStore.save();
+		const beta = projectStore.list[0];
+		projectStore.rename(beta.id, 'Alpha');
+		expect(projectStore.list).toHaveLength(1);
+		expect(projectStore.list[0].name).toBe('Alpha');
+		expect(projectStore.list[0].state.code).toBe('pie title beta');
+	});
+
 	it('renames and imports without duplicating', () => {
 		projectStore.save('One');
 		const entry = projectStore.list[0];

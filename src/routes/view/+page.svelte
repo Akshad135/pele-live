@@ -67,8 +67,8 @@
 	.back {
 		position: fixed;
 		/* Below the zoom tools, which own the top-right corner. */
-		top: 60px;
-		right: 14px;
+		top: 68px;
+		right: 16px;
 		z-index: 20;
 		text-decoration: none;
 		color: var(--fg);
@@ -76,9 +76,9 @@
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 5px 12px;
-		font-size: 12.5px;
+		border-radius: 11px;
+		padding: 7px 14px;
+		font-size: 13px;
 		font-weight: 500;
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
 	}

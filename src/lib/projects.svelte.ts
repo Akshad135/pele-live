@@ -99,7 +99,10 @@ export const projectStore = {
 		const entry = projects.find((p) => p.id === id);
 		if (!entry || !name.trim()) return;
 		entry.name = name.trim();
-		persist(projects);
+		// Renaming onto an existing name overwrites it — the panel's own
+		// promise. The renamed entry keeps its (newer) state; its same-named
+		// predecessors are removed.
+		persist(projects.filter((p) => p.id === id || p.name.toLowerCase() !== entry.name.toLowerCase()));
 	},
 
 	entryUrl(entry: Project) {

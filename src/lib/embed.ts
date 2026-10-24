@@ -90,8 +90,15 @@ function escapeHtml(text: string): string {
 	return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-export function htmlWithState(svg: string, state: string | null, title: string): string {
+export function htmlWithState(
+	svg: string,
+	state: string | null,
+	title: string,
+	background?: string | null
+): string {
 	const meta = state ? `<meta name="pele-live-state" content="${state}">` : '';
+	// A page cannot be transparent; null (Transparent choice) keeps plain white.
+	const pageBackground = background || '#fff';
 	return [
 		'<!doctype html>',
 		'<html>',
@@ -100,7 +107,7 @@ export function htmlWithState(svg: string, state: string | null, title: string):
 		meta,
 		`<title>${escapeHtml(title)}</title>`,
 		'<style>',
-		'body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #fff; }',
+		`body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: ${pageBackground}; }`,
 		'svg { max-width: 100vw; height: auto; }',
 		'</style>',
 		'</head>',

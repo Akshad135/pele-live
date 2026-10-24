@@ -7,6 +7,9 @@
 		exportHtml,
 		exportPng,
 		exportSvg,
+		naturalSize,
+		sanitizeColor,
+		svgSizeFor,
 		type PngOptions
 	} from '$lib/export';
 	import type { SharedState } from '$lib/serde';
@@ -285,33 +288,109 @@
 	});
 
 	// --- Export ----------------------------------------------------------------
-	let copied = $state(false);
+	// Feedback per action: which copy flashes "Copied", which download flashes
+	// "Saved", and whether a PNG rasterize is currently running.
+	let copied = $state<'' | 'svg' | 'png'>('');
 	let copyTimer: ReturnType<typeof setTimeout> | undefined;
+	let saved = $state<'' | 'svg' | 'png' | 'html'>('');
+	let savedTimer: ReturnType<typeof setTimeout> | undefined;
+	let pngBusy = $state(false);
 	let exportError = $state('');
 
-	$effect(() => () => clearTimeout(copyTimer));
-
-	function flashCopied() {
-		copied = true;
+	$effect(() => () => {
 		clearTimeout(copyTimer);
-		copyTimer = setTimeout(() => (copied = false), 1600);
+		clearTimeout(savedTimer);
+	});
+
+	function flashCopied(kind: 'svg' | 'png') {
+		copied = kind;
+		clearTimeout(copyTimer);
+		copyTimer = setTimeout(() => (copied = ''), 1600);
+	}
+
+	function flashSaved(kind: 'svg' | 'png' | 'html') {
+		saved = kind;
+		clearTimeout(savedTimer);
+		savedTimer = setTimeout(() => (saved = ''), 1600);
 	}
 
 	// The export popup with one row per format.
 	let exportOpen = $state(false);
 	let exportDialog = $state<HTMLDivElement | undefined>();
+	let exportToggle = $state<HTMLButtonElement | undefined>();
 	// Editor state embedded into exports so files can be re-imported here.
 	let embedOn = $state(true);
 	// PNG export sizing: auto (2x) or fit a chosen width/height.
 	let pngMode = $state<'auto' | 'width' | 'height'>('auto');
 	let pngValue = $state(1080);
+	// Exports' canvas fill: the theme's own background, a custom color, or none.
+	// Applies to PNG (canvas fill), SVG (a fill rect) and HTML (page background).
+	let pngBg = $state<'theme' | 'custom' | 'transparent'>('theme');
+	let pngCustom = $state('#ffffff');
+
+	function themeBg(): string {
+		const el = frame;
+		const value = el ? getComputedStyle(el).getPropertyValue('--pele-bg') : '';
+		return sanitizeColor(value || '#ffffff');
+	}
+
+	function setPngBg(bg: 'theme' | 'custom' | 'transparent') {
+		// A new custom pick starts from the color the user currently sees.
+		if (bg === 'custom' && pngBg !== 'custom') pngCustom = themeBg();
+		pngBg = bg;
+	}
+
+	function exportBackground(): string | null {
+		return pngBg === 'transparent' ? null : pngBg === 'custom' ? sanitizeColor(pngCustom) : themeBg();
+	}
 
 	function pngOptions(): PngOptions {
-		return { mode: pngMode, value: Math.max(16, Math.min(16384, pngValue || 0)) };
+		return {
+			mode: pngMode,
+			value: Math.max(16, Math.min(16384, pngValue || 0)),
+			background: exportBackground()
+		};
 	}
+
+	// What a PNG export with the current options will measure, so "auto" is not
+	// a black box and a clamped width entry is visible before downloading.
+	const pngReadout = $derived.by(() => {
+		if (!outcome.ok) return '';
+		const natural = naturalSize(outcome.svg);
+		if (!natural) return '';
+		const target = svgSizeFor(
+			{ mode: pngMode, value: Math.max(16, Math.min(16384, pngValue || 0)), background: null },
+			natural
+		);
+		return `Exports at ${Math.round(target.width)} × ${Math.round(target.height)} px`;
+	});
 
 	function exportState(): SharedState | undefined {
 		return embedOn && shared ? shared : undefined;
+	}
+
+	function closeExport() {
+		exportOpen = false;
+		// Return focus to the trigger; the dialog is otherwise a focus dead end.
+		exportToggle?.focus();
+	}
+
+	// Keep Tab cycling inside the open dialog.
+	function trapTab(event: KeyboardEvent) {
+		if (event.key !== 'Tab' || !exportDialog) return;
+		const focusables = [
+			...exportDialog.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled])')
+		];
+		if (!focusables.length) return;
+		const first = focusables[0];
+		const last = focusables[focusables.length - 1];
+		if (event.shiftKey && document.activeElement === first) {
+			last.focus();
+			event.preventDefault();
+		} else if (!event.shiftKey && document.activeElement === last) {
+			first.focus();
+			event.preventDefault();
+		}
 	}
 
 	// Close the export popup on Escape or a click outside of it.
@@ -320,10 +399,10 @@
 		const close = (event: Event) => {
 			if (!(event.target instanceof Element) || !event.target.isConnected) return;
 			if (event.target.closest('.export-popover, .export-toggle')) return;
-			exportOpen = false;
+			closeExport();
 		};
 		const keyClose = (event: KeyboardEvent) => {
-			if (event.key === 'Escape') exportOpen = false;
+			if (event.key === 'Escape') closeExport();
 		};
 		document.addEventListener('click', close);
 		document.addEventListener('keydown', keyClose);
@@ -346,8 +425,8 @@
 		const source = currentSource();
 		if (!outcome.ok || !source) return;
 		try {
-			await copySvg(outcome.svg, source, exportState(), css);
-			flashCopied();
+			await copySvg(outcome.svg, source, exportState(), css, exportBackground());
+			flashCopied('svg');
 		} catch {
 			exportError = 'Clipboard is unavailable here.';
 		}
@@ -356,35 +435,44 @@
 	function onDownloadSvg() {
 		const source = currentSource();
 		if (!outcome.ok || !source) return;
-		exportSvg(outcome.svg, source, exportState(), css);
+		exportSvg(outcome.svg, source, exportState(), css, exportBackground());
+		flashSaved('svg');
 	}
 
 	function onDownloadHtml() {
 		const source = currentSource();
 		if (!outcome.ok || !source) return;
-		exportHtml(outcome.svg, source, exportState(), css);
+		exportHtml(outcome.svg, source, exportState(), css, exportBackground());
+		flashSaved('html');
 	}
 
 	async function onDownloadPng() {
 		const source = currentSource();
-		if (!outcome.ok || !source) return;
+		if (!outcome.ok || !source || pngBusy) return;
 		exportError = '';
+		pngBusy = true;
 		try {
 			await exportPng(outcome.svg, source, pngOptions(), exportState(), css);
+			flashSaved('png');
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'PNG export failed.';
+		} finally {
+			pngBusy = false;
 		}
 	}
 
 	async function onCopyPng() {
 		const source = currentSource();
-		if (!outcome.ok || !source) return;
+		if (!outcome.ok || !source || pngBusy) return;
 		exportError = '';
+		pngBusy = true;
 		try {
 			await copyPng(outcome.svg, source, pngOptions(), exportState(), css);
-			flashCopied();
+			flashCopied('png');
 		} catch (e) {
 			exportError = e instanceof Error ? e.message : 'Could not copy the image.';
+		} finally {
+			pngBusy = false;
 		}
 	}
 
@@ -425,8 +513,8 @@
 	{#if outcome.ok}
 		<div
 			class="diagram"
-			role="application"
-			aria-label="Diagram canvas — drag to pan, scroll to zoom"
+			role="img"
+			aria-label="Diagram preview — pan and zoom with the pointer, or use the zoom controls"
 			class:panning
 			onwheel={onWheel}
 			onpointerdown={startPan}
@@ -471,7 +559,7 @@
 			</button>
 		</div>
 		<div class="side-tools">
-			<button class="export-toggle" onclick={() => (exportOpen = !exportOpen)} aria-expanded={exportOpen} title="Export the diagram">
+			<button class="export-toggle" bind:this={exportToggle} onclick={() => (exportOpen = !exportOpen)} aria-expanded={exportOpen} title="Export the diagram">
 				Export
 			</button>
 			<span class="side-sep" aria-hidden="true"></span>
@@ -499,10 +587,17 @@
 			</button>
 		</div>
 		{#if exportOpen}
-			<div class="export-popover" role="dialog" aria-label="Export the diagram" tabindex="-1" bind:this={exportDialog}>
+			<div
+				class="export-popover"
+				role="dialog"
+				aria-label="Export the diagram"
+				tabindex="-1"
+				bind:this={exportDialog}
+				onkeydown={trapTab}
+			>
 				<header class="export-head">
 					<strong>Export</strong>
-					<button class="export-close" onclick={() => (exportOpen = false)} title="Close" aria-label="Close export dialog">
+					<button class="export-close" onclick={closeExport} title="Close" aria-label="Close export dialog">
 						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12" /></svg>
 					</button>
 				</header>
@@ -512,46 +607,74 @@
 						Embed editor state — files can be re-imported here
 					</label>
 				{/if}
+				<div class="export-bg">
+					<span class="export-format">Background</span>
+					<div class="png-line">
+						<div class="png-bg-modes">
+							{#each [['theme', 'Theme'], ['custom', 'Custom'], ['transparent', 'Transparent']] as [bg, label] (bg)}
+								<button
+									aria-pressed={pngBg === bg}
+									class:active={pngBg === bg}
+									onclick={() => setPngBg(bg as 'theme' | 'custom' | 'transparent')}
+								>
+									{label}
+								</button>
+							{/each}
+						</div>
+						{#if pngBg === 'custom'}
+							<input class="png-color" type="color" bind:value={pngCustom} aria-label="Custom background color" />
+						{/if}
+					</div>
+				</div>
 				<div class="export-row">
 					<span class="export-format">SVG</span>
-					<button onclick={onDownloadSvg}>Download .svg</button>
-					<button onclick={onCopySvg}>{copied ? 'Copied' : 'Copy SVG'}</button>
+					<button onclick={onDownloadSvg}>{saved === 'svg' ? 'Saved' : 'Download .svg'}</button>
+					<button onclick={onCopySvg}>{copied === 'svg' ? 'Copied' : 'Copy SVG'}</button>
 				</div>
 				<div class="export-row">
 					<span class="export-format">PNG</span>
 					<div class="export-png">
-						<div class="png-modes">
-							{#each ['auto', 'width', 'height'] as mode (mode)}
-								<button
-									aria-pressed={pngMode === mode}
-									class:active={pngMode === mode}
-									onclick={() => (pngMode = mode as 'auto' | 'width' | 'height')}
-								>
-									{mode}
-								</button>
-							{/each}
+						<div class="png-line">
+							<div class="png-modes">
+								{#each ['auto', 'width', 'height'] as mode (mode)}
+									<button
+										aria-pressed={pngMode === mode}
+										class:active={pngMode === mode}
+										onclick={() => (pngMode = mode as 'auto' | 'width' | 'height')}
+									>
+										{mode}
+									</button>
+								{/each}
+							</div>
+							{#if pngMode !== 'auto'}
+								<label class="png-size">
+									{pngMode === 'width' ? 'Width' : 'Height'}
+									<input type="number" min="16" max="16384" bind:value={pngValue} />
+									px
+								</label>
+							{/if}
 						</div>
-						{#if pngMode !== 'auto'}
-							<label class="png-size">
-								{pngMode === 'width' ? 'Width' : 'Height'}
-								<input type="number" min="16" max="16384" bind:value={pngValue} />
-								px
-							</label>
+						{#if pngReadout}
+							<p class="png-readout">{pngReadout}</p>
 						{/if}
 					</div>
 					<div class="png-actions">
-						<button onclick={onDownloadPng}>Download .png</button>
-						<button onclick={onCopyPng}>Copy PNG</button>
+						<button onclick={onDownloadPng} disabled={pngBusy}>
+							{pngBusy ? 'Rendering…' : saved === 'png' ? 'Saved' : 'Download .png'}
+						</button>
+						<button onclick={onCopyPng} disabled={pngBusy}>
+							{pngBusy ? 'Rendering…' : copied === 'png' ? 'Copied' : 'Copy PNG'}
+						</button>
 					</div>
 				</div>
 				{#if shared}
 					<div class="export-row">
 						<span class="export-format">HTML</span>
-						<button onclick={onDownloadHtml}>Download .html</button>
+						<button onclick={onDownloadHtml}>{saved === 'html' ? 'Saved' : 'Download .html'}</button>
 					</div>
 				{/if}
 				{#if exportError}
-					<p class="export-error" role="alert">{exportError}</p>
+					<p class="export-error export-error-inline" role="alert">{exportError}</p>
 				{/if}
 			</div>
 		{/if}
@@ -611,7 +734,9 @@
 		left: 50%;
 		top: 50%;
 		transform-origin: center;
-		will-change: transform;
+		/* No will-change here: a promoted layer is rasterized once and then
+		   resampled on every zoom, which blurs the diagram. Without it the
+		   browser re-renders the svg at the actual scale — sharp at any zoom. */
 	}
 
 	/* The pristine svg that svg2roughjs reads; kept rendered but invisible. */
@@ -628,29 +753,29 @@
 
 	.badge {
 		position: absolute;
-		top: 14px;
-		left: 14px;
-		font-size: 11.5px;
+		top: 16px;
+		left: 16px;
+		font-size: 12px;
 		font-weight: 500;
 		color: var(--muted);
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 999px;
-		padding: 2px 10px;
+		padding: 4px 12px;
 	}
 
 	.docs-link {
 		position: absolute;
 		/* Under the type badge; the top-right corner belongs to the zoom tools. */
-		top: 46px;
-		left: 14px;
-		font-size: 11.5px;
+		top: 52px;
+		left: 16px;
+		font-size: 12px;
 		font-weight: 500;
 		color: var(--muted);
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 999px;
-		padding: 2px 10px;
+		padding: 4px 12px;
 		text-decoration: none;
 	}
 
@@ -662,16 +787,16 @@
 	.zoom-tools {
 		position: absolute;
 		display: flex;
-		gap: 2px;
-		padding: 3px;
+		gap: 3px;
+		padding: 4px;
 		background: color-mix(in srgb, var(--surface) 72%, transparent);
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: 11px;
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
-		top: 14px;
-		right: 14px;
+		top: 16px;
+		right: 16px;
 	}
 
 	.zoom-tools button,
@@ -679,9 +804,9 @@
 		border: 0;
 		background: transparent;
 		color: var(--fg);
-		border-radius: 7px;
-		padding: 4px 10px;
-		font-size: 12px;
+		border-radius: 8px;
+		padding: 6px 11px;
+		font-size: 12.5px;
 		font-weight: 500;
 		cursor: pointer;
 		display: grid;
@@ -702,25 +827,25 @@
 
 	.side-tools {
 		position: absolute;
-		bottom: 14px;
-		right: 14px;
+		bottom: 16px;
+		right: 16px;
 		display: flex;
 		align-items: center;
-		gap: 2px;
-		padding: 3px;
+		gap: 3px;
+		padding: 4px;
 		background: color-mix(in srgb, var(--surface) 72%, transparent);
 		backdrop-filter: blur(10px);
 		-webkit-backdrop-filter: blur(10px);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: 11px;
 		box-shadow: 0 2px 10px rgb(0 0 0 / 0.07);
 	}
 
 	.side-sep {
 		width: 1px;
-		height: 16px;
+		height: 18px;
 		background: var(--border-strong);
-		margin: 0 3px;
+		margin: 0 4px;
 	}
 
 	.diagram-frame:fullscreen {
@@ -729,16 +854,23 @@
 
 	.export-error {
 		position: absolute;
-		bottom: 44px;
-		right: 14px;
+		bottom: 64px;
+		right: 16px;
 		margin: 0;
-		font-size: 12px;
+		font-size: 12.5px;
 		color: var(--error-fg);
 		background: var(--surface);
 		border: 1px solid var(--error-border);
-		border-radius: 6px;
-		padding: 4px 10px;
+		border-radius: 8px;
+		padding: 6px 12px;
 		z-index: 11;
+	}
+
+	/* Inside the open dialog the error flows with the content instead of
+	   floating over the buttons it belongs to. */
+	.export-error-inline {
+		position: static;
+		justify-self: start;
 	}
 
 	/* Centered export dialog over the canvas. */
@@ -748,12 +880,15 @@
 		left: 50%;
 		transform: translate(-50%, -50%);
 		display: grid;
-		gap: 10px;
-		width: min(400px, calc(100% - 32px));
-		padding: 14px;
+		gap: 12px;
+		width: min(460px, calc(100% - 32px));
+		/* Short viewports scroll the dialog instead of clipping its bottom. */
+		max-height: calc(100% - 32px);
+		overflow-y: auto;
+		padding: 20px;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 12px;
+		border-radius: 14px;
 		box-shadow:
 			0 4px 12px rgb(0 0 0 / 0.1),
 			0 24px 64px rgb(0 0 0 / 0.24);
@@ -764,15 +899,15 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		font-size: 13.5px;
+		font-size: 14.5px;
 	}
 
 	.export-close {
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		border-radius: 6px;
-		padding: 4px;
+		border-radius: 7px;
+		padding: 6px;
 		cursor: pointer;
 		display: grid;
 		place-items: center;
@@ -787,48 +922,54 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: 12.5px;
+		font-size: 13px;
 		color: var(--muted);
 		cursor: pointer;
 	}
 
 	.export-embed input {
 		accent-color: var(--accent);
+		width: 15px;
+		height: 15px;
 	}
 
+	/* Every row shares one label column, so the format buttons and the
+	   background segmented control start on the same x. */
 	.export-row {
 		display: grid;
-		grid-template-columns: 44px 1fr 1fr;
+		grid-template-columns: 96px 1fr 1fr;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 	}
 
 	.export-row:has(.export-png) {
-		grid-template-columns: 44px 1fr;
+		grid-template-columns: 96px 1fr;
 	}
 
 	.export-format {
-		font-size: 12px;
+		font-size: 12.5px;
 		font-weight: 600;
 		color: var(--muted);
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 	}
 
-	.export-row > button {
+	.export-row > button,
+	.png-actions button {
 		border: 1px solid var(--border);
 		background: transparent;
 		color: var(--fg);
-		font-size: 12px;
+		font-size: 13px;
 		font-weight: 500;
-		border-radius: 7px;
-		padding: 5px 10px;
+		border-radius: 8px;
+		padding: 8px 12px;
 		cursor: pointer;
 		white-space: nowrap;
 		text-align: center;
 	}
 
-	.export-row > button:hover {
+	.export-row > button:hover,
+	.png-actions button:hover {
 		background: var(--accent-soft);
 		color: var(--accent);
 		border-color: var(--accent);
@@ -836,85 +977,133 @@
 
 	.export-png {
 		display: flex;
-		align-items: center;
-		gap: 8px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 10px;
 		grid-column: 2;
 	}
 
-	.png-modes {
-		display: flex;
-		gap: 2px;
-		background: var(--bg);
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 2px;
+	/* The background choice row: one pick applied to PNG, SVG and HTML alike,
+	   on the same shared label column as the format rows. */
+	.export-bg {
+		display: grid;
+		grid-template-columns: 96px 1fr;
+		align-items: center;
+		gap: 8px;
 	}
 
-	.png-modes button {
+	.png-line {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-wrap: wrap;
+	}
+
+	.png-modes,
+	.png-bg-modes {
+		display: flex;
+		gap: 3px;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 9px;
+		padding: 3px;
+	}
+
+	.png-modes button,
+	.png-bg-modes button {
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		font-size: 12px;
+		font-size: 12.5px;
 		font-weight: 500;
-		padding: 3px 10px;
-		border-radius: 6px;
+		padding: 5px 12px;
+		border-radius: 7px;
 		cursor: pointer;
+	}
+
+	.png-modes button {
 		text-transform: capitalize;
 	}
 
-	.png-modes button.active {
+	.png-modes button.active,
+	.png-bg-modes button.active {
 		background: var(--surface);
 		color: var(--fg);
 		box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+	}
+
+	.png-color {
+		width: 34px;
+		height: 30px;
+		padding: 2px;
+		border: 1px solid var(--border);
+		border-radius: 7px;
+		background: var(--bg);
+		cursor: pointer;
+	}
+
+	.png-readout {
+		margin: 0;
+		font-size: 12.5px;
+		color: var(--muted);
 	}
 
 	.png-size {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 12px;
+		font-size: 12.5px;
 		color: var(--muted);
 	}
 
 	.png-size input {
-		width: 76px;
+		width: 84px;
 		font: inherit;
-		font-size: 12.5px;
+		font-size: 13px;
 		color: var(--fg);
 		background: var(--bg);
 		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 3px 6px;
+		border-radius: 7px;
+		padding: 5px 8px;
 	}
 
 	.png-actions {
 		grid-column: 2;
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 6px;
-	}
-
-	.png-actions button {
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--fg);
-		font-size: 12px;
-		font-weight: 500;
-		border-radius: 7px;
-		padding: 5px 10px;
-		cursor: pointer;
-		white-space: nowrap;
-		text-align: center;
-	}
-
-	.png-actions button:hover {
-		background: var(--accent-soft);
-		color: var(--accent);
-		border-color: var(--accent);
+		gap: 8px;
 	}
 
 	.export-popover:focus {
 		outline: none;
+	}
+
+	/* Narrow screens: let the dialog's controls wrap instead of clipping. */
+	@media (max-width: 520px) {
+		.export-popover {
+			padding: 16px;
+		}
+
+		.export-row {
+			grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr);
+			gap: 6px;
+		}
+
+		.export-row:has(.export-png) {
+			grid-template-columns: 44px minmax(0, 1fr);
+		}
+
+		/* The long "Background" label gets its own line on phones. */
+		.export-bg {
+			grid-template-columns: 1fr;
+		}
+
+		.export-row > button,
+		.png-actions button {
+			white-space: normal;
+			padding: 8px 6px;
+			font-size: 12.5px;
+		}
 	}
 
 	.error-banner {
@@ -923,10 +1112,10 @@
 		border: 1px solid var(--error-border);
 		color: var(--error-fg);
 		border-radius: var(--radius);
-		padding: 14px 16px;
-		font-size: 13.5px;
+		padding: 16px 18px;
+		font-size: 14px;
 		display: grid;
-		gap: 6px;
+		gap: 8px;
 	}
 
 	.error-banner pre {

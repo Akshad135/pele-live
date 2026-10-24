@@ -116,7 +116,9 @@
 	--bg: #f1efeb;
 	--surface: #ffffff;
 	--fg: #23201b;
-	--muted: #857f74;
+	/* ≥ 4.5:1 on both --surface and --bg (WCAG AA for the 12-13px text that
+	   uses it); the earlier warmer grey measured 3.97:1. */
+	--muted: #6f6a5f;
 	--border: #e3dfd7;
 	--border-strong: #cfc9be;
 	--accent: #0f766e;
@@ -128,14 +130,14 @@
 	--grid-dot: #dcd7cd;
 	--syntax-keyword: #0e7490;
 	--syntax-string: #047857;
-	--syntax-comment: #a8a29e;
+	--syntax-comment: #6f6a5f;
 	--syntax-meta: #7c3aed;
 	--syntax-operator: #78716c;
 
 	/* Diagram tokens (pele). Warm off-white, stone lines. */
 	--pele-bg: #ffffff;
 	--pele-fg: #23201b;
-	--pele-muted: #857f74;
+	--pele-muted: #6f6a5f;
 	--pele-line: #4a453c;
 	--pele-surface: #f7f5f1;
 	--pele-surface-alt: #ece9e2;
@@ -320,7 +322,7 @@ button {
 	height: 100dvh;
 	display: flex;
 	flex-direction: column;
-	padding: 10px;
+	padding: 12px;
 }
 
 /* The whole playground sits in one floating rounded shell. */
@@ -342,19 +344,25 @@ button {
 /* Import feedback: a toast for messages, a veil while dragging files over. */
 .import-toast {
 	position: absolute;
-	bottom: 16px;
+	bottom: 20px;
 	left: 50%;
 	transform: translateX(-50%);
 	z-index: 60;
 	margin: 0;
 	max-width: 70%;
-	font-size: 12.5px;
+	font-size: 13px;
 	color: var(--fg);
 	background: var(--surface);
 	border: 1px solid var(--border);
 	border-radius: 10px;
-	padding: 6px 14px;
+	padding: 8px 16px;
 	box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+}
+
+/* Failures and partial imports must not read as success. */
+.import-toast.failed {
+	color: var(--error-fg);
+	border-color: var(--error-border);
 }
 
 .drop-hint {

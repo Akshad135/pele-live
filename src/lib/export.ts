@@ -20,11 +20,31 @@ const PELE_VARS = [
 	...Array.from({ length: 8 }, (_, i) => `--pele-series-${i + 1}`)
 ];
 
-/** PNG export sizing, like the original editor's: double the natural size, or fit a given width/height. */
+/**
+ * PNG export options: sizing (double the natural size, or fit a given
+ * width/height) and the canvas fill behind the diagram.
+ */
 export interface PngOptions {
 	mode: 'auto' | 'width' | 'height';
 	/** Target pixels for the chosen mode. Unused in auto mode. */
 	value: number;
+	/** Fill painted behind the diagram, or null for a transparent PNG. */
+	background: string | null;
+}
+
+/**
+ * Accept only plain colors the rasterizer can fill: hex or rgb()/rgba().
+ * Anything else (var(), color-mix(), an unresolved token, out-of-range
+ * channels) falls back, so an export never fails or paints nothing just
+ * because a value didn't resolve.
+ */
+export function sanitizeColor(value: string, fallback = '#ffffff'): string {
+	const v = value.trim();
+	if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+	if (/^#[0-9a-fA-F]{3}$/.test(v)) return `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`.toLowerCase();
+	const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(0|1|0?\.\d+)\s*)?\)$/i.exec(v);
+	if (rgb && Number(rgb[1]) <= 255 && Number(rgb[2]) <= 255 && Number(rgb[3]) <= 255) return v;
+	return fallback;
 }
 
 function skipQuoted(css: string, start: number): number {
@@ -84,7 +104,7 @@ export function svgScopedCss(raw: string): string {
  * ships along inside a <style> element, so exported files look exactly like
  * the preview.
  */
-export function withResolvedTheme(svg: string, source: Element, css?: string): string {
+export function withResolvedTheme(svg: string, source: Element, css?: string, background?: string | null): string {
 	const parsed = new DOMParser().parseFromString(svg, 'image/svg+xml');
 	const root = parsed.documentElement;
 	if (root.nodeName === 'parsererror' || parsed.querySelector('parsererror')) return svg;
@@ -96,6 +116,15 @@ export function withResolvedTheme(svg: string, source: Element, css?: string): s
 	const palette = paletteFromStyle(computed);
 	if (palette.length) {
 		colorizeNodes([...root.querySelectorAll('.pele-nodes > .pele-node')], palette);
+	}
+	// Optional opaque fill behind the diagram, so exports picked for a dark
+	// theme stay visible in white-background viewers. First child = bottom layer.
+	if (background) {
+		const fill = parsed.createElementNS('http://www.w3.org/2000/svg', 'rect');
+		fill.setAttribute('width', '100%');
+		fill.setAttribute('height', '100%');
+		fill.setAttribute('fill', background);
+		root.insertBefore(fill, root.firstChild);
 	}
 	const scoped = css ? svgScopedCss(css) : '';
 	if (scoped) {
@@ -115,26 +144,38 @@ function download(blob: Blob, filename: string) {
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function naturalSize(resolved: string): { width: number; height: number } | null {
+export function naturalSize(resolved: string): { width: number; height: number } | null {
 	const width = Number(/width="([\d.]+)"/.exec(resolved)?.[1]);
 	const height = Number(/height="([\d.]+)"/.exec(resolved)?.[1]);
 	return width > 0 && height > 0 ? { width, height } : null;
 }
 
-export function exportSvg(svg: string, source: Element, state?: SharedState, css?: string) {
-	const resolved = withResolvedTheme(svg, source, css);
+export function exportSvg(
+	svg: string,
+	source: Element,
+	state?: SharedState,
+	css?: string,
+	background?: string | null
+) {
+	const resolved = withResolvedTheme(svg, source, css, background);
 	const withState = state ? svgWithState(resolved, serializeState(state)) : resolved;
 	download(new Blob([withState], { type: 'image/svg+xml;charset=utf-8' }), 'diagram.svg');
 }
 
-export function exportHtml(svg: string, source: Element, state?: SharedState, css?: string) {
-	const resolved = withResolvedTheme(svg, source, css);
+export function exportHtml(
+	svg: string,
+	source: Element,
+	state?: SharedState,
+	css?: string,
+	background?: string | null
+) {
+	const resolved = withResolvedTheme(svg, source, css, background);
 	const title = `${state?.code.match(/^\S+/)?.[0] ?? 'Diagram'} — pele.live`;
-	const doc = htmlWithState(resolved, state ? serializeState(state) : null, title);
+	const doc = htmlWithState(resolved, state ? serializeState(state) : null, title, background);
 	download(new Blob([doc], { type: 'text/html;charset=utf-8' }), 'diagram.html');
 }
 
-function svgSizeFor(options: PngOptions, natural: { width: number; height: number }) {
+export function svgSizeFor(options: PngOptions, natural: { width: number; height: number }) {
 	const value = Math.max(16, Math.min(16384, options.value));
 	if (options.mode === 'auto') {
 		return { width: natural.width * 2, height: natural.height * 2 };
@@ -147,7 +188,11 @@ function svgSizeFor(options: PngOptions, natural: { width: number; height: numbe
 	return { width: Math.max(1, Math.round(natural.width * scale)), height: value };
 }
 
-function rasterize(resolved: string, target: { width: number; height: number }): Promise<Blob> {
+function rasterize(
+	resolved: string,
+	target: { width: number; height: number },
+	background: string | null
+): Promise<Blob> {
 	// Browsers silently rasterize nothing beyond ~16384px per side; refuse
 	// instead of exporting a blank image.
 	if (target.width > 16384 || target.height > 16384) {
@@ -165,6 +210,12 @@ function rasterize(resolved: string, target: { width: number; height: number }):
 			if (!ctx) {
 				reject(new Error('Canvas is unavailable.'));
 				return;
+			}
+			// The svg itself is transparent; the background is whatever the user
+			// picked, painted under the diagram.
+			if (background) {
+				ctx.fillStyle = background;
+				ctx.fillRect(0, 0, canvas.width, canvas.height);
 			}
 			ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 			canvas.toBlob((blob) => {
@@ -190,7 +241,7 @@ export async function exportPng(
 	const resolved = withResolvedTheme(svg, source, css);
 	const natural = naturalSize(resolved);
 	if (!natural) throw new Error('SVG has no intrinsic size.');
-	const blob = await rasterize(resolved, svgSizeFor(options, natural));
+	const blob = await rasterize(resolved, svgSizeFor(options, natural), options.background);
 	const bytes = new Uint8Array(await blob.arrayBuffer());
 	const withState = state ? pngWithState(bytes, serializeState(state)) : bytes;
 	const kind = state ? 'diagram-with-editor-state.png' : 'diagram.png';
@@ -211,7 +262,7 @@ export async function copyPng(
 	const resolved = withResolvedTheme(svg, source, css);
 	const natural = naturalSize(resolved);
 	if (!natural) throw new Error('SVG has no intrinsic size.');
-	const blob = await rasterize(resolved, svgSizeFor(options, natural));
+	const blob = await rasterize(resolved, svgSizeFor(options, natural), options.background);
 	if (state) {
 		const bytes = pngWithState(new Uint8Array(await blob.arrayBuffer()), serializeState(state));
 		await navigator.clipboard.write([new ClipboardItem({ 'image/png': new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' }) })]);
@@ -224,9 +275,10 @@ export async function copySvg(
 	svg: string,
 	source: Element,
 	state?: SharedState,
-	css?: string
+	css?: string,
+	background?: string | null
 ): Promise<void> {
-	const resolved = withResolvedTheme(svg, source, css);
+	const resolved = withResolvedTheme(svg, source, css, background);
 	const withState = state ? svgWithState(resolved, serializeState(state)) : resolved;
 	await navigator.clipboard.writeText(withState);
 }

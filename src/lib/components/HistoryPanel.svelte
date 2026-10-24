@@ -8,6 +8,31 @@
 	let cancelledRename = false;
 	let importError = $state('');
 	let fileInput = $state<HTMLInputElement | undefined>();
+	let renameInput = $state<HTMLInputElement | undefined>();
+
+	type Tab = 'projects' | 'manual' | 'auto';
+	const TAB_ORDER: Tab[] = ['projects', 'manual', 'auto'];
+
+	// The tabs announce the proper tab pattern, so they honor it: arrow keys
+	// move both selection and focus.
+	function onTabKey(event: KeyboardEvent) {
+		if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+		event.preventDefault();
+		const at = TAB_ORDER.indexOf(tab);
+		const next = TAB_ORDER[(at + (event.key === 'ArrowRight' ? 1 : TAB_ORDER.length - 1)) % TAB_ORDER.length];
+		tab = next;
+		const buttons = (event.currentTarget as HTMLElement).querySelectorAll<HTMLButtonElement>('[role="tab"]');
+		buttons[TAB_ORDER.indexOf(next)]?.focus();
+	}
+
+	// autofocus is ignored on elements inserted after load; focus explicitly,
+	// with the current name preselected for a fast replace.
+	$effect(() => {
+		if (editingId && renameInput) {
+			renameInput.focus();
+			renameInput.select();
+		}
+	});
 
 	const projects = $derived(projectStore.list);
 	const historyList = $derived(tab === 'manual' ? history.manual : history.auto);
@@ -104,7 +129,7 @@
 
 <div class="panel">
 	<div class="head">
-		<div class="tabs" role="tablist" aria-label="Library lists">
+		<div class="tabs" role="tablist" aria-label="Library lists" tabindex="-1" onkeydown={onTabKey}>
 			<button role="tab" aria-selected={tab === 'projects'} class:active={tab === 'projects'} onclick={() => (tab = 'projects')}>
 				Projects <span class="count">{projects.length}</span>
 			</button>
@@ -151,11 +176,10 @@
 					<li>
 						<div class="meta">
 							{#if editingId === entry.id}
-								<!-- svelte-ignore a11y_autofocus -->
 								<input
 									class="rename"
+									bind:this={renameInput}
 									value={editName}
-									autofocus
 									oninput={(e) => (editName = e.currentTarget.value)}
 									onkeydown={(e) => {
 										// Only the rename reacts: Escape here must not bubble to the
@@ -212,11 +236,10 @@
 					<li>
 						<div class="meta">
 							{#if editingId === entry.id}
-								<!-- svelte-ignore a11y_autofocus -->
 								<input
 									class="rename"
+									bind:this={renameInput}
 									value={editName}
-									autofocus
 									oninput={(e) => (editName = e.currentTarget.value)}
 									onkeydown={(e) => {
 										e.stopPropagation();
@@ -274,16 +297,16 @@
 
 <style>
 	.panel {
-		width: 380px;
+		width: 420px;
 		max-width: calc(100vw - 32px);
-		max-height: min(460px, 70vh);
+		max-height: min(500px, 70vh);
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		padding: 10px;
+		gap: 8px;
+		padding: 14px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 12px;
+		border-radius: 14px;
 		box-shadow: 0 12px 40px rgb(0 0 0 / 0.16);
 	}
 
@@ -291,27 +314,30 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
+		gap: 10px;
+		/* Long "Save project" buttons can squeeze the tab strip; wrap instead. */
+		flex-wrap: wrap;
 	}
 
 	.tabs {
 		display: flex;
-		gap: 2px;
+		gap: 3px;
 		background: var(--bg);
 		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 2px;
+		border-radius: 9px;
+		padding: 3px;
 	}
 
 	.tabs button {
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		font-size: 12px;
+		font-size: 12.5px;
 		font-weight: 500;
-		padding: 3px 10px;
-		border-radius: 6px;
+		padding: 5px 12px;
+		border-radius: 7px;
 		cursor: pointer;
+		white-space: nowrap;
 	}
 
 	.tabs button.active {
@@ -323,22 +349,22 @@
 	.count {
 		color: var(--muted);
 		font-size: 11px;
-		margin-left: 3px;
+		margin-left: 4px;
 	}
 
 	.head-actions {
 		display: flex;
-		gap: 2px;
+		gap: 4px;
 	}
 
 	.head-actions .action {
 		border: 0;
 		background: var(--accent-soft);
 		color: var(--accent);
-		font-size: 12px;
+		font-size: 12.5px;
 		font-weight: 500;
-		border-radius: 7px;
-		padding: 4px 10px;
+		border-radius: 8px;
+		padding: 6px 12px;
 		cursor: pointer;
 		white-space: nowrap;
 	}
@@ -351,8 +377,8 @@
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		border-radius: 7px;
-		padding: 5px;
+		border-radius: 8px;
+		padding: 7px;
 		cursor: pointer;
 		display: grid;
 		place-items: center;
@@ -376,8 +402,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		padding: 7px 6px;
+		gap: 10px;
+		padding: 9px 8px;
 		border-radius: 8px;
 	}
 
@@ -392,7 +418,7 @@
 	.meta {
 		min-width: 0;
 		display: grid;
-		gap: 1px;
+		gap: 2px;
 	}
 
 	.name {
@@ -419,7 +445,7 @@
 	}
 
 	.time {
-		font-size: 11.5px;
+		font-size: 12px;
 		color: var(--muted);
 	}
 
@@ -429,15 +455,15 @@
 		color: var(--fg);
 		background: var(--bg);
 		border: 1px solid var(--accent);
-		border-radius: 6px;
-		padding: 2px 6px;
+		border-radius: 7px;
+		padding: 4px 8px;
 		width: 200px;
 		max-width: 100%;
 	}
 
 	.row-actions {
 		display: flex;
-		gap: 1px;
+		gap: 2px;
 		flex-shrink: 0;
 	}
 
@@ -446,8 +472,8 @@
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		border-radius: 6px;
-		padding: 5px;
+		border-radius: 7px;
+		padding: 7px;
 		cursor: pointer;
 		display: grid;
 		place-items: center;
@@ -468,21 +494,21 @@
 	}
 
 	.note {
-		margin: 4px 2px;
-		font-size: 12.5px;
+		margin: 6px 4px;
+		font-size: 13px;
 		color: var(--muted);
-		line-height: 1.5;
+		line-height: 1.55;
 	}
 
 	.clear {
 		border: 0;
 		background: transparent;
 		color: var(--muted);
-		font-size: 12px;
-		padding: 4px;
+		font-size: 12.5px;
+		padding: 6px;
 		cursor: pointer;
 		text-align: center;
-		border-radius: 6px;
+		border-radius: 8px;
 	}
 
 	.clear:hover {
